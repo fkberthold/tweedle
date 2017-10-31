@@ -1,5 +1,5 @@
 import unittest
-from microkanren_core import *
+from microkanren.urkanren import *
 
 class Test_CoreMicroKanren(unittest.TestCase):
     def test_base_var(self):
