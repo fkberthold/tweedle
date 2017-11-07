@@ -35,7 +35,7 @@ def unit(soc):
 
 def eq(u, v):
     """Returns a function that takes a state/count object and returns
-        a new state/count object.
+        a list of new state/count objects.
        If u and v are both set terms, determines if they are the same.
            If they are, returns the state as is.
            If they are not, then returns an empty state.
@@ -50,6 +50,11 @@ def eq(u, v):
     return eqHelp
 
 def unify(u, v, state):
+    """Given a pair of terms determines if they can be equivalent.
+        If they are both the same established value, returns the state.
+        If one or the other value is unknown, then updates the state with
+            the unkown value being set to the known value.
+        If they can't be unified then returns False."""
     u = walk(u, state)
     v = walk(v, state)
     if varq(u) and varq(v) and vareq(u, v):
@@ -70,6 +75,9 @@ def unify(u, v, state):
         return False
 
 def call_fresh(f):
+    """Takes a 1-arity function which returns a list of states.  It assigns the given argument
+        an unassigned term.  It then returns a function that takes a state and returns a list of
+        states."""
     def call_fresh_help(soc):
         c = soc[1]
         fun = f(var(c))
