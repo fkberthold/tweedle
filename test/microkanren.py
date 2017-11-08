@@ -60,6 +60,12 @@ class Test_CoreMicroKanren(unittest.TestCase):
         call = (lambda f: call_fresh(lambda g: eq(f, g)))
         self.assertCountEqual(call_fresh(call)(empty_state), [([([0], [1])],2)])
 
+    def test_disj_base(self):
+        call = (lambda f: disj(eq(f, [0]), eq(f, [1])))
+        choice1 = ([([2], 'hi')] + two_values[0], 3)
+        choice2 = ([([2], 'bye')] + two_values[0], 3)
+        self.assertCountEqual(call_fresh(call)(two_values), [choice1, choice2])
+
 
 if __name__ == "__main__":
     unittest.main()

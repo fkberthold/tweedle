@@ -27,6 +27,7 @@ def ext_s(variable, value, state):
     """Add a value v to variable x for the given state s"""
     return ([(variable, value)] + state)
 
+# The state when there is a contradiction in terms.
 mzero = []
 
 def unit(soc):
@@ -85,11 +86,14 @@ def call_fresh(f):
     return call_fresh_help
 
 def disj(g1, g2):
+    """Take two relations. For each one that evaluates true, concatenate and return
+        it's results."""
     def disj_help(soc):
         return mplus(g1(soc), g2(soc))
     return disj_help
 
 def conj(g1, g2):
+    """Take two relations. Determine the result if both are true."""
     def conj_help(soc):
         return bind(g1(soc), g2)
     return conj_help
