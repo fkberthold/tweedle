@@ -1,16 +1,22 @@
+
+
+class LogicVariable():
+    def __init__(self, identifier):
+        self.id = identifier
+
 def var(c):
     """Var creates a Term by wrapping an integer in a list"""
-    return [c]
+    return LogicVariable(c)
 
 def varq(x):
     """Determine if a value is a var"""
-    return isinstance(x, list)
+    return isinstance(x, LogicVariable)
 
 def vareq(x1, x2):
     """Determine if to vars are equal. This does not check if
     they're values are the same, but if they are exactly the same
     pointer."""
-    return x1[0]  == x2[0]
+    return x1.id  == x2.id
 
 def walk(term, state):
     """Walk through the given state.
