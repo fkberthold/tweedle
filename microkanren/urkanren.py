@@ -4,6 +4,12 @@ class LogicVariable():
     def __init__(self, identifier):
         self.id = identifier
 
+    def __eq__(self, other):
+        return isinstance(other, LogicVariable) and self.id == other.id
+
+    def __repr__(self):
+        return "~%i" % self.id
+
 def var(c):
     """Var creates a Term by wrapping an integer in a list"""
     return LogicVariable(c)
@@ -18,21 +24,22 @@ def vareq(x1, x2):
     pointer."""
     return x1.id  == x2.id
 
-def walk(term, state):
-    """Walk through the given state.
+def walk(term, substitution):
+    """Walk through the given substitution.
         If the term is not a variable, return it,
         If the term is a variable and the first value found is not a variable, return it.
         If the first value found is a variable, repeat walking on that variable."""
-    pr = varq(term) and ([(variable, value) for (variable, value) in state if (vareq(term,variable))] or [False])[0]
+    pr = varq(term) and ([(variable, value) for (variable, value) in substitution if (vareq(term,variable))] or [False])[0]
     if pr is not False:
-        return walk(pr[1], state)
+        return walk(pr[1], substitution)
     else:
         return term
 
-def ext_s(variable, value, state):
-    """Add a value v to variable x for the given state s"""
-    return ([(variable, value)] + state)
+def ext_s(variable, value, substitution):
+    """Add a value v to variable x for the given substitution s"""
+    return ([(variable, value)] + substitution)
 
+# The state when there is a contradiction in terms.
 mzero = []
 
 def unit(soc):
@@ -55,28 +62,28 @@ def eq(u, v):
             return mzero
     return eqHelp
 
-def unify(u, v, state):
+def unify(u, v, substitution):
     """Given a pair of terms determines if they can be equivalent.
-        If they are both the same established value, returns the state.
-        If one or the other value is unknown, then updates the state with
+        If they are both the same established value, returns the substitution.
+        If one or the other value is unknown, then updates the substitution with
             the unkown value being set to the known value.
         If they can't be unified then returns False."""
-    u = walk(u, state)
-    v = walk(v, state)
+    u = walk(u, substitution)
+    v = walk(v, substitution)
     if varq(u) and varq(v) and vareq(u, v):
-        return state
+        return substitution
     elif varq(u):
-        return ext_s(u, v, state)
+        return ext_s(u, v, substitution)
     elif varq(v):
-        return ext_s(v, u, state)
+        return ext_s(v, u, substitution)
     elif isinstance(u, list) and isinstance(v, list) and u and v:
-        headState = unify(u[0], v[0], state)
+        headState = unify(u[0], v[0], substitution)
         if headState:
             return unify(u[1:], v[1:], headState)
         else:
             return False
     elif u == v:
-        return state
+        return substitution
     else:
         return False
 
@@ -91,11 +98,14 @@ def call_fresh(f):
     return call_fresh_help
 
 def disj(g1, g2):
+    """Take two relations. For each one that evaluates true, concatenate and return
+        it's results."""
     def disj_help(soc):
         return mplus(g1(soc), g2(soc))
     return disj_help
 
 def conj(g1, g2):
+    """Take two relations. Determine the result if both are true."""
     def conj_help(soc):
         return bind(g1(soc), g2)
     return conj_help

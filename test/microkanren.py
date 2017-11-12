@@ -6,13 +6,13 @@ from microkanren.urkanren import *
 empty_state = ([], 0)
 
 one_value = ([(var(0), 'hi')], 1)
-two_values = ([(var(0), 'hi'), (var(0), 'bye')], 2)
+two_values = ([(var(0), 'hi'), (var(1), 'bye')], 2)
 value_reference = ([(var(0), var(1)), (var(1), 'bye')], 2)
 identical_values = ([(var(0), 'hi'), (var(1), 'hi')], 2)
 
 class Test_CoreMicroKanren(unittest.TestCase):
     def test_base_var(self):
-        self.assertEqual(var(1), LogicVariable(1))
+        self.assertTrue(var(1).id == LogicVariable(1).id)
 
     def test_base_varq(self):
         self.assertTrue(varq(var(1)))
@@ -59,6 +59,12 @@ class Test_CoreMicroKanren(unittest.TestCase):
     def test_call_fresh_nest(self):
         call = (lambda f: call_fresh(lambda g: eq(f, g)))
         self.assertCountEqual(call_fresh(call)(empty_state), [([(var(0), var(1))],2)])
+
+    def test_disj_base(self):
+        call = (lambda f: disj(eq(f, var(0)), eq(f, var(1))))
+        choice1 = ([(var(2), 'hi')] + two_values[0], 3)
+        choice2 = ([(var(2), 'bye')] + two_values[0], 3)
+        self.assertCountEqual(call_fresh(call)(two_values), [choice1, choice2])
 
 
 if __name__ == "__main__":
