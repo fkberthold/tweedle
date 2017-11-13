@@ -47,6 +47,9 @@ class Test_CoreMicroKanren(unittest.TestCase):
     def test_literal_var_eq(self):
         self.assertCountEqual(eq(var(0), 'hi')(one_value), [one_value])
 
+    def test_list_eq(self):
+        self.assertCountEqual(call_fresh(lambda f:eq([1,2], [1,f]))(empty_state), [([(var(0), 2)], 1)])
+
     def test_unify_base(self):
         self.assertCountEqual(unify(var(0), var(1), identical_values[0]), identical_values[0])
 

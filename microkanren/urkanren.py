@@ -77,9 +77,9 @@ def unify(u, v, substitution):
     elif varq(v):
         return ext_s(v, u, substitution)
     elif isinstance(u, list) and isinstance(v, list) and u and v:
-        headState = unify(u[0], v[0], substitution)
-        if headState:
-            return unify(u[1:], v[1:], headState)
+        headSub = unify(u[0], v[0], substitution)
+        if headSub is not False:
+            return unify(u[1:], v[1:], headSub)
         else:
             return False
     elif u == v:
