@@ -10,6 +10,9 @@ class LogicVariable():
     def __repr__(self):
         return "~%i" % self.id
 
+    def __hash__(self):
+        return self.id
+
 def var(c):
     """Var creates a Term by wrapping an integer in a list"""
     return LogicVariable(c)
@@ -29,15 +32,19 @@ def walk(term, substitution):
         If the term is not a variable, return it,
         If the term is a variable and the first value found is not a variable, return it.
         If the first value found is a variable, repeat walking on that variable."""
-    pr = varq(term) and ([(variable, value) for (variable, value) in substitution if (vareq(term,variable))] or [False])[0]
-    if pr is not False:
-        return walk(pr[1], substitution)
+    if isinstance(term, LogicVariable):
+        value = substitution.get(term, term)
+        if isinstance(value, LogicVariable) and value != term:
+            return walk(value, substitution)
+        else:
+            return value
     else:
         return term
 
 def ext_s(variable, value, substitution):
     """Add a value v to variable x for the given substitution s"""
-    return ([(variable, value)] + substitution)
+    new = {variable:value}
+    return {**substitution, **new}
 
 # The state when there is a contradiction in terms.
 mzero = []
