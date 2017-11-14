@@ -1,4 +1,4 @@
-
+import types
 
 class LogicVariable():
     def __init__(self, identifier):
@@ -47,11 +47,11 @@ def ext_s(variable, value, substitution):
     return {**substitution, **new}
 
 # The state when there is a contradiction in terms.
-mzero = []
+mzero = iter([])
 
 def unit(soc):
     """Don't change anything"""
-    return [soc] + mzero
+    yield soc
 
 def eq(u, v):
     """Returns a function that takes a state/count object and returns
@@ -118,17 +118,33 @@ def conj(g1, g2):
     return conj_help
 
 def mplus(s1, s2):
-    if s1 == []:
-        return s2
-    elif callable(s1):
-        return (lambda: mplus(s2, s1()))
-    else:
-        return [s1[0]] + mplus(s1[1:], s2)
+    try:
+        goal = s1.__next__()
+        yield goal
+        for newgoal in mplus(s2, s1):
+            yield newgoal
+    except StopIteration:
+        for goal in s2:
+            yield goal
 
 def bind(s, g):
-    if s == []:
-        return mzero
-    elif callable(s):
-        return (lambda: bind(s(), g))
-    else:
-        return mplus(g(s[0]), bind(s[1:], g))
+    goal = s.__next__()
+    for res in mplus(g(goal), bind(s, g)):
+        yield res
+
+"""
+def bind(s, g):
+    goal = s.__next__()
+    if isinstance(goal, types.GeneratorType):
+        for res in bind(goal, g):
+            yield res
+        for res in s:
+            yield bind(res, g)
+
+    for goal in s:
+        yield g(goal)
+    return
+"""
+
+
+
