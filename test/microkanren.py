@@ -42,7 +42,7 @@ class Test_CoreMicroKanren(unittest.TestCase):
         self.assertCountEqual(eq(1, 1)(one_value), [one_value])
 
     def test_literal_not_eq(self):
-        self.assertEqual(eq(1, 2)(one_value), [])
+        self.assertCountEqual(eq(1, 2)(one_value), [])
 
     def test_literal_var_eq(self):
         self.assertCountEqual(eq(var(0), 'hi')(one_value), [one_value])
@@ -57,7 +57,7 @@ class Test_CoreMicroKanren(unittest.TestCase):
         self.assertFalse(unify(var(0), var(1), two_values[0]))
 
     def test_call_fresh_base(self):
-        self.assertCountEqual(((call_fresh(lambda g: eq(g, var(0)))(two_values))[0][0]), {**two_values[0], **{var(2): 'hi'}})
+        self.assertCountEqual(((list(call_fresh(lambda g: eq(g, var(0)))(two_values)))[0][0]), {**two_values[0], **{var(2): 'hi'}})
 
     def test_call_fresh_nest(self):
         call = (lambda f: call_fresh(lambda g: eq(f, g)))
