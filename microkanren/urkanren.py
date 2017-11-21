@@ -1,4 +1,5 @@
 import types
+from inspect import signature
 
 class LogicVariable():
     def __init__(self, identifier):
@@ -95,13 +96,16 @@ def unify(u, v, substitution):
         return False
 
 def call_fresh(f):
-    """Takes a 1-arity function which returns a list of states.  It assigns the given argument
+    """Takes a *-arity function which returns a list of states.  It assigns the given argument
         an unassigned term.  It then returns a function that takes a state and returns a list of
         states."""
     def call_fresh_help(soc):
         c = soc[1]
-        fun = f(var(c))
-        return fun((soc[0], c + 1))
+        arg_count = len(signature(f).parameters)
+        new_c = c + arg_count
+        new_vars = [var(n) for n in range(c, new_c)]
+        fun = f(*new_vars)
+        return fun((soc[0], new_c))
     return call_fresh_help
 
 def disj(g1, g2):
@@ -117,15 +121,21 @@ def conj(g1, g2):
         return bind(g1(soc), g2)
     return conj_help
 
-def mplus(s1, s2):
-    try:
-        goal = s1.__next__()
-        yield goal
-        for newgoal in mplus(s2, s1):
-            yield newgoal
-    except StopIteration:
-        for goal in s2:
+def mplus(*s):
+    if len(s) == 0:
+        return
+    else:
+        try:
+            s1 = s[0]
+            srest = s[1:]
+            goal = s1.__next__()
             yield goal
+            newOrder = srest + (s1,)
+            for newgoal in mplus(*newOrder):
+                yield newgoal
+        except StopIteration:
+            for newgoal in mplus(*srest):
+                yield newgoal
 
 def bind(s, g):
     goal = s.__next__()
