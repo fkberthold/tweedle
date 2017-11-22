@@ -108,17 +108,17 @@ def call_fresh(f):
         return fun((soc[0], new_c))
     return call_fresh_help
 
-def disj(g1, g2):
-    """Take two relations. For each one that evaluates true, concatenate and return
+def disj(*gs):
+    """Take multiple relations. For each one that evaluates true, concatenate and return
         it's results."""
     def disj_help(soc):
-        return mplus(g1(soc), g2(soc))
+        return mplus((g(soc) for g in gs))
     return disj_help
 
-def conj(g1, g2):
+def conj(*gs):
     """Take two relations. Determine the result if both are true."""
     def conj_help(soc):
-        return bind(g1(soc), g2)
+        return bind(gs[0](soc), *g2[1:])
     return conj_help
 
 def mplus(*s):
@@ -137,10 +137,13 @@ def mplus(*s):
             for newgoal in mplus(*srest):
                 yield newgoal
 
-def bind(s, g):
-    goal = s.__next__()
-    for res in mplus(g(goal), bind(s, g)):
-        yield res
+def bind(s, *g):
+    if len(g) == 0:
+        return
+    else:
+        goal = s.__next__()
+        for res in mplus(g[0](goal), bind(s, *g)):
+            yield from bind(res, bind(s, *g[1:]))
 
 """
 def bind(s, g):
