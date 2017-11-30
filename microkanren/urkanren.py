@@ -112,13 +112,13 @@ def disj(*gs):
     """Take multiple relations. For each one that evaluates true, concatenate and return
         it's results."""
     def disj_help(soc):
-        return mplus((g(soc) for g in gs))
+        yield from mplus((g(soc) for g in gs))
     return disj_help
 
 def conj(*gs):
     """Take two relations. Determine the result if both are true."""
     def conj_help(soc):
-        return bind(gs[0](soc), *g2[1:])
+        return bind(gs[0](soc), *gs[1:])
     return conj_help
 
 def mplus(*s):
@@ -126,24 +126,30 @@ def mplus(*s):
         return
     else:
         try:
-            s1 = s[0]
+            s0 = s[0]
             srest = s[1:]
-            goal = s1.__next__()
-            yield goal
-            newOrder = srest + (s1,)
-            for newgoal in mplus(*newOrder):
-                yield newgoal
+            goal = s0.__next__()
+            yield from goal
+            newOrder = srest + (s0,)
+            yield from mplus(*newOrder)
         except StopIteration:
-            for newgoal in mplus(*srest):
-                yield newgoal
+            yield from mplus(*srest)
+
 
 def bind(s, *g):
     if len(g) == 0:
-        return
+        if isinstance(s, types.GeneratorType):
+            yield from s
+        else:
+            yield s
     else:
-        goal = s.__next__()
-        for res in mplus(g[0](goal), bind(s, *g)):
-            yield from bind(res, bind(s, *g[1:]))
+        if isinstance(s, types.GeneratorType):
+            for goalGen in s:
+                for goal in g[0](goalGen):
+                    yield from bind(goal, *g[1:])
+        else:
+            for goal in g[0](s):
+                yield from bind(goal, *g[1:])
 
 """
 def bind(s, g):
