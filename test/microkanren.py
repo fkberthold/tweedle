@@ -69,10 +69,21 @@ class Test_CoreMicroKanren(unittest.TestCase):
         choice2 = ({**{var(2):'bye'}, **(two_values[0])}, 3)
         self.assertCountEqual(list(call_fresh(call)(two_values)), [choice1, choice2])
 
+    def test_disj_several(self):
+        call = (lambda f, g: disj(eq(f, var(0)), eq(f, var(1)), eq(g, var(0))))
+        choice1 = ({**{var(2):'hi'}, **(two_values[0])}, 4)
+        choice2 = ({**{var(2):'bye'}, **(two_values[0])}, 4)
+        choice3 = ({**{var(3):'hi'}, **(two_values[0])}, 4)
+        self.assertCountEqual(list(call_fresh(call)(two_values)), [choice1, choice2, choice3])
+
     def test_conj_base(self):
         call = lambda f, g: conj(eq(f, g), eq(g, var(0)))
         choice = ({**{var(3):'hi', var(2):var(3)}, **(two_values[0])}, 4)
         self.assertCountEqual(list(call_fresh(call)(two_values)), [choice])
 
+    def test_conj_several(self):
+        call = lambda f, g, h: conj(eq(f, g), eq(g, var(0)), eq(h, var(1)))
+        choice = ({**{var(3):'hi', var(2):var(3), var(4):'bye'}, **(two_values[0])}, 5)
+        self.assertCountEqual(list(call_fresh(call)(two_values)), [choice])
 if __name__ == "__main__":
     unittest.main()
