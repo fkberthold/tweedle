@@ -1,7 +1,7 @@
 import types
 from inspect import signature
 
-class LogicVariable():
+class LogicVariable(object):
     def __init__(self, identifier):
         self.id = identifier
 
@@ -13,6 +13,24 @@ class LogicVariable():
 
     def __hash__(self):
         return self.id
+
+class State(object):
+    def __init__(self, substitution={}, count=0):
+        assert count >= 0
+        assert len(substitution) <= count
+        self.count = count
+        self.substitution = substitution
+
+    def __hash__(self):
+        return hash((self.count, tuple(self.substitution.keys()), tuple(self.substitution.values())))
+
+    def __eq__(self, other):
+        assert isinstance(other, State)
+        return self.count == other.count and self.substitution == other.substitution
+
+    def __repr__(self):
+        subs = "\n".join(["  %s: %s" % (repr(key), repr(self.substitution[key])) for key in self.substitution])
+        return "\nCount: %i\nSubstitutions:\n%s" % (self.count, subs)
 
 def var(c):
     """Var creates a Term by wrapping an integer in a list"""
@@ -50,9 +68,9 @@ def ext_s(variable, value, substitution):
 # The state when there is a contradiction in terms.
 mzero = iter([])
 
-def unit(soc):
+def unit(state):
     """Don't change anything"""
-    yield soc
+    yield state
 
 def eq(u, v):
     """Returns a function that takes a state/count object and returns
@@ -62,10 +80,10 @@ def eq(u, v):
            If they are not, then returns an empty state.
        If u or v is a variable, then asserts they are equal and adds it to,
           the state. If they are not equal, then returns an empty state."""
-    def eqHelp(soc):
-        s = unify(u, v, soc[0])
+    def eqHelp(state):
+        s = unify(u, v, state.substitution)
         if s:
-            return unit((s, soc[1]))
+            return unit(State(s, state.count))
         else:
             return mzero
     return eqHelp
@@ -99,54 +117,55 @@ def call_fresh(f):
     """Takes a *-arity function which returns a list of states.  It assigns the given argument
         an unassigned term.  It then returns a function that takes a state and returns a list of
         states."""
-    def call_fresh_help(soc):
-        c = soc[1]
+    def call_fresh_help(state):
+        c = state.count
         arg_count = len(signature(f).parameters)
         new_c = c + arg_count
         new_vars = [var(n) for n in range(c, new_c)]
         fun = f(*new_vars)
-        return fun((soc[0], new_c))
+        newState = State(state.substitution, new_c)
+        return fun(newState)
     return call_fresh_help
 
 def disj(*gs):
     """Take multiple relations. For each one that evaluates true, concatenate and return
         it's results."""
-    def disj_help(soc):
-        yield from mplus((g(soc) for g in gs))
+    def disj_help(state):
+        yield from mplus((g(state) for g in gs))
     return disj_help
 
 def conj(*gs):
     """Take two relations. Determine the result if both are true."""
-    def conj_help(soc):
-        return bind(gs[0](soc), *gs[1:])
+    def conj_help(state):
+        return bind(gs[0](state), *gs[1:])
     return conj_help
 
-def mplus(*s):
-    if len(s) == 0:
+def mplus(*states):
+    if len(states) == 0:
         return
     else:
         try:
-            s0 = s[0]
-            srest = s[1:]
-            goal = s0.__next__()
+            state0 = states[0]
+            srest = states[1:]
+            goal = state0.__next__()
             yield from goal
-            newOrder = srest + (s0,)
+            newOrder = srest + (state0,)
             yield from mplus(*newOrder)
         except StopIteration:
             yield from mplus(*srest)
 
 
-def bind(s, *g):
+def bind(states, *g):
     if len(g) == 0:
-        if isinstance(s, types.GeneratorType):
-            yield from s
+        if isinstance(states, types.GeneratorType):
+            yield from states
         else:
-            yield s
+            yield states
     else:
-        if isinstance(s, types.GeneratorType):
-            for goalGen in s:
+        if isinstance(states, types.GeneratorType):
+            for goalGen in states:
                 for goal in g[0](goalGen):
                     yield from bind(goal, *g[1:])
         else:
-            for goal in g[0](s):
+            for goal in g[0](states):
                 yield from bind(goal, *g[1:])

@@ -1,71 +1,48 @@
-from urkanren import *
+from microkanren.urkanren import *
 import copy
 import itertools
 
 def isListo(lst, knownVarList=[]):
-    def varListHelp(soc):
-        s = soc[0]
-        c = soc[1]
+    def varListHelp(state):
+        s = state.substitution
+        c = state.count
         varList = copy.copy(knownVarList)
         if isinstance(lst, list):
-            yield soc
+            yield state
         elif not varq(lst):
             return
         else:
             while(True):
-                yield from eq(lst, varList)((s, c))
+                yield from eq(lst, varList)(State(s, c))
                 varList.append(var(c))
                 c += 1
     return varListHelp
-"""
+
 def conso(elem, lst, elemAndLst):
-    def listVarq(val):
-        return isinstance(val, list) or varq(val)
-    def consoHelp(soc):
-        if not(listVarq(lst)) or not(listVarq(elemAndLst)):
-            return mzero  # Not lists or vars
-        elif not (varq(lst) or varq(elemAndLst)):
-            return eq([elem] + lst, elemAndLst)(soc)  # Both are lists
-        elif varq(lst) and varq(elemAndLst):
-            return conj(isListo(lst),
-                        isListo(elemAndLst),
-
-
-
-            lstIsEmpty = conj(eq(lst, []),
-                            eq(elemAndLst, [elem]))
-            construction = call_fresh(lambda head, tail:
-                                    conj(conso(head, tail, elemAndLst),
-                                         eq(elem, head),
-                                         eq(lst, tail)))
-            return disj(lstIsEmpty, construction)(soc)
-        elif varq(lst):
-            return conj(eq(elem, elemAndLst[0]),
-                        eq(lst, elemAndLst[1:]))(soc)
-        else:
-            return eq([elem] + lst, elemAndLst)(soc)
-    return consoHelp
-"""
+    return conj(heado(elemAndLst, elem),
+                tailo(elemAndLst, lst))
 
 def heado(lst, head):
-    def headoHelp(soc):
+    def headoHelp(state):
         if not(isinstance(lst,list) or varq(lst)):
             return mzero
         elif isinstance(lst, list):
             if(len(lst) == 0):
                 return mzero
             else:
-                return eq(lst[0], head)(soc)
+                return eq(lst[0], head)(state)
         elif varq(lst):
-            return isListo(lst, [head])(soc)
+            return isListo(lst, [head])(state)
         else:
             return mzero
     return headoHelp
 
 def tailo(lst, tail):
     def tailPairGen(soc):
-        c = soc[1]
-        s = soc[0]
+        print("soc: " + str(soc))
+        yield from conj(eq(lst, []),
+                        eq(tail, []))(soc)
+        (s, c) = soc
         headless = []
         head = var(c)
         headed = [head]
