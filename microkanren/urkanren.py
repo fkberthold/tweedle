@@ -1,15 +1,22 @@
 import types
+import collections
+import copy
+import traceback
 from inspect import signature
 
 class LogicVariable(object):
-    def __init__(self, identifier):
+    def __init__(self, identifier, name=None):
         self.id = identifier
+        self.name = name
 
     def __eq__(self, other):
         return isinstance(other, LogicVariable) and self.id == other.id
 
     def __repr__(self):
-        return "~%i" % self.id
+        if self.name:
+            return "~%s(%i)" % (self.name, self.id)
+        else:
+            return "~%i" % self.id
 
     def __hash__(self):
         return self.id
@@ -32,9 +39,10 @@ class State(object):
         subs = "\n".join(["  %s: %s" % (repr(key), repr(self.substitution[key])) for key in self.substitution])
         return "\nCount: %i\nSubstitutions:\n%s" % (self.count, subs)
 
-def var(c):
+def var(c, name=None):
     """Var creates a Term by wrapping an integer in a list"""
-    return LogicVariable(c)
+    return LogicVariable(c, name)
+
 
 def varq(x):
     """Determine if a value is a var"""
@@ -72,43 +80,43 @@ def unit(state):
     """Don't change anything"""
     yield state
 
-def eq(u, v):
+def eq(left, right):
     """Returns a function that takes a state/count object and returns
         a list of new state/count objects.
-       If u and v are both set terms, determines if they are the same.
+       If left and right are both set terms, determines if they are the same.
            If they are, returns the state as is.
            If they are not, then returns an empty state.
-       If u or v is a variable, then asserts they are equal and adds it to,
+       If left or right is a variable, then asserts they are equal and adds it to,
           the state. If they are not equal, then returns an empty state."""
     def eqHelp(state):
-        s = unify(u, v, state.substitution)
-        if s:
-            return unit(State(s, state.count))
+        unified = unify(left, right, state.substitution)
+        if unified:
+            return unit(State(unified, state.count))
         else:
             return mzero
-    return eqHelp
+    return generate(eqHelp)
 
-def unify(u, v, substitution):
+def unify(left, right, substitution):
     """Given a pair of terms determines if they can be equivalent.
         If they are both the same established value, returns the substitution.
         If one or the other value is unknown, then updates the substitution with
             the unkown value being set to the known value.
         If they can't be unified then returns False."""
-    u = walk(u, substitution)
-    v = walk(v, substitution)
-    if varq(u) and varq(v) and vareq(u, v):
+    left = walk(left, substitution)
+    right = walk(right, substitution)
+    if varq(left) and varq(right) and vareq(left, right):
         return substitution
-    elif varq(u):
-        return ext_s(u, v, substitution)
-    elif varq(v):
-        return ext_s(v, u, substitution)
-    elif isinstance(u, list) and isinstance(v, list) and u and v:
-        headSub = unify(u[0], v[0], substitution)
+    elif varq(left):
+        return ext_s(left, right, substitution)
+    elif varq(right):
+        return ext_s(right, left, substitution)
+    elif isinstance(left, list) and isinstance(right, list) and left and right:
+        headSub = unify(left[0], right[0], substitution)
         if headSub is not False:
-            return unify(u[1:], v[1:], headSub)
+            return unify(left[1:], right[1:], headSub)
         else:
             return False
-    elif u == v:
+    elif left == right:
         return substitution
     else:
         return False
@@ -119,53 +127,105 @@ def call_fresh(f):
         states."""
     def call_fresh_help(state):
         c = state.count
-        arg_count = len(signature(f).parameters)
+        params = signature(f).parameters
+        arg_count = len(params)
         new_c = c + arg_count
-        new_vars = [var(n) for n in range(c, new_c)]
+        new_vars = [var(number, name) for (number, name) in zip(range(c, new_c), params)]
         fun = f(*new_vars)
         newState = State(state.substitution, new_c)
-        return fun(newState)
-    return call_fresh_help
+        yield from fun(newState)
+    return generate(call_fresh_help)
 
 def disj(*gs):
     """Take multiple relations. For each one that evaluates true, concatenate and return
         it's results."""
     def disj_help(state):
-        yield from mplus((g(state) for g in gs))
-    return disj_help
+        yield from mplus(*[g(state) for g in gs])
+    return generate(disj_help)
 
 def conj(*gs):
     """Take two relations. Determine the result if both are true."""
     def conj_help(state):
-        return bind(gs[0](state), *gs[1:])
+        yield from bind(*gs)(state)
     return conj_help
+
+def generate(fun):
+    """If `state` is a single state, applies fun to it, if it is a generator,
+       then applies fun across the generator and yields for each result.
+
+       If fun returns a single state, returns a generator that yields the one
+       state, if it returns a generator, then will yield over that genrator."""
+    def generate_help(state):
+        if isinstance(state, types.GeneratorType):
+            for genState in state:
+                result = fun(genState)
+                if isinstance(result, State):
+                    yield result
+                else:
+                    yield from result
+        else:
+            result = fun(state)
+            if isinstance(result, State):
+                yield result
+            else:
+                yield from result
+    return generate_help
 
 def mplus(*states):
     if len(states) == 0:
-        return
+        return empty
     else:
-        try:
-            state0 = states[0]
-            srest = states[1:]
-            goal = state0.__next__()
-            yield from goal
-            newOrder = srest + (state0,)
-            yield from mplus(*newOrder)
-        except StopIteration:
-            yield from mplus(*srest)
+        stateStreams = states
+        newStreams = []
+        while stateStreams:
+            for stateStream in stateStreams:
+                try:
+                    result = stateStream.__next__()
+                    if isinstance(result, State):
+                        yield result
+                    else:
+                        newStreams.append(result)
+                    newStreams.append(stateStream)
+                except StopIteration:
+                    pass
+            stateStreams=newStreams
+            newStreams=[]
 
-
-def bind(states, *g):
-    if len(g) == 0:
-        if isinstance(states, types.GeneratorType):
+def bind(*goals):
+    def bind_help(states):
+        if len(goals) == 0:
             yield from states
+        elif len(goals) == 1:
+            yield from goals[0](states)
         else:
-            yield states
-    else:
-        if isinstance(states, types.GeneratorType):
-            for goalGen in states:
-                for goal in g[0](goalGen):
-                    yield from bind(goal, *g[1:])
-        else:
-            for goal in g[0](states):
-                yield from bind(goal, *g[1:])
+            stateStreams = []
+            newStreams = []
+            for state in goals[0](states):
+                stateStreams = [bind(*goals[1:])(unit(state))] + stateStreams
+                for stateStream in stateStreams:
+                    try:
+                        result = stateStream.__next__()
+                        if isinstance(result, State):
+                            yield result
+                        else:
+                            newStreams.append(result)
+                        newStreams.append(stateStream)
+                    except StopIteration:
+                        pass
+                stateStreams = newStreams
+                newStreams = []
+            while stateStreams:
+                for stateStream in stateStreams:
+                    try:
+                        result = stateStream.__next__()
+                        if isinstance(result, State):
+                            yield result
+                        else:
+                            newStreams.append(result)
+                        newStreams.append(stateStream)
+                    except StopIteration:
+                        pass
+                stateStreams = newStreams
+                newStreams = []
+
+    return bind_help
