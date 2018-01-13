@@ -2,6 +2,7 @@ import types
 import collections
 import copy
 import traceback
+import sys
 from inspect import signature
 
 class LogicVariable(object):
@@ -90,7 +91,7 @@ def eq(left, right):
           the state. If they are not equal, then returns an empty state."""
     def eqHelp(state):
         unified = unify(left, right, state.substitution)
-        if unified:
+        if isinstance(unified, dict):
             return unit(State(unified, state.count))
         else:
             return mzero
@@ -110,7 +111,7 @@ def unify(left, right, substitution):
         return ext_s(left, right, substitution)
     elif varq(right):
         return ext_s(right, left, substitution)
-    elif isinstance(left, list) and isinstance(right, list) and left and right:
+    elif isinstance(left, list) and isinstance(right, list) and len(left) == len(right) and len(left) > 0:
         headSub = unify(left[0], right[0], substitution)
         if headSub is not False:
             return unify(left[1:], right[1:], headSub)
@@ -228,4 +229,4 @@ def bind(*goals):
                 stateStreams = newStreams
                 newStreams = []
 
-    return bind_help
+    return generate(bind_help)

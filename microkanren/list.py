@@ -7,12 +7,13 @@ def constructList(lst, knownVarList=[], minLength=0, maxLength=None):
         s = state.substitution
         c = state.count
         varList = copy.copy(knownVarList)
-        if isinstance(lst, list):
-            if (len(lst) >= minLength) and (maxLength is None or len(lst) <= maxLength):
-                yield from eq(lst, knownVarList)(state)
+        lstVal = walk(lst, s)
+        if isinstance(lstVal, list):
+            if (len(lstVal) >= minLength) and (maxLength is None or len(lstVal) <= maxLength) and len(lstVal) >= len(knownVarList):
+                yield from eq(lstVal[:len(knownVarList)], knownVarList)(state)
             else:
                 return
-        elif not varq(lst):
+        elif not varq(lstVal):
             return
         elif maxLength is not None and len(knownVarList) > maxLength:
             return
@@ -51,8 +52,8 @@ def tailo(lst, tail):
         headed = [head]
         count += 1
         while True:
-            yield from conj(eq(lst, headed),
-                            eq(tail, headless))(State(substitution, count))
+            yield conj(eq(lst, headed),
+                       eq(tail, headless))(State(substitution, count))
             headless.append(var(count))
             headed.append(var(count))
             count += 1
