@@ -15,9 +15,9 @@ class LogicVariable(object):
 
     def __repr__(self):
         if self.name:
-            return "~%s(%i)" % (self.name, self.id)
+            return "?%s(%i)" % (self.name, self.id)
         else:
-            return "~%i" % self.id
+            return "?%i" % self.id
 
     def __hash__(self):
         return self.id
