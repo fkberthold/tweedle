@@ -1,9 +1,9 @@
-from microkanren.urkanren import *
+from microkanren.ukanren import *
 import copy
 import itertools
 
 def emptyo(lst):
-    return eq(lst, [])
+    return Eq(lst, [])
 
 def constructList(lst, knownVarList=[], minLength=0, maxLength=None):
     def varListHelp(state):
