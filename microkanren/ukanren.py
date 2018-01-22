@@ -4,6 +4,7 @@ import copy
 import traceback
 import sys
 import unification
+from unification import isvar
 from inspect import signature
 
 class State(object):
@@ -35,6 +36,13 @@ class State(object):
         else:
             return "State Invalid"
 
+    def update(self, substitution=None, count=None, nameTable=None, valid=None):
+        substitution = self.substitution if substitution is None else substitution
+        count = self.count if count is None else count
+        nameTable = self.nameTable if nameTable is None else nameTable
+        valid = self.valid if valid is None else valid
+        return State(substitution, count, nameTable, valid)
+
     def addVariables(self, count=1):
         return State(self.substitution, self.count + count, self.nameTable, self.valid)
 
@@ -52,12 +60,21 @@ class State(object):
         else:
             return State(newSub, self.count, self.nameTable, self.valid)
 
-    def var(self, identifier, name=None):
+    def var(self, identifier=None, name=None):
+        if identifier is None:
+            identifier = self.count
+            self.count += 1
         assert identifier < self.count, "ID is out of range."
         newVar = unification.var(identifier)
         if name:
             self.nameTable[newVar] = name
-        return (State(self.substitution, self.count, {newVar:name, **self.nameTable} if name else self.nameTabe, self.valid), newVar)
+        return (State(self.substitution, self.count, {newVar:name, **self.nameTable} if name else self.nameTable, self.valid), newVar)
+
+
+mzero = iter([])
+
+def unit(state):
+    yield state
 
 class Goal(object):
     """A goal is ..."""

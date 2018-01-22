@@ -5,46 +5,61 @@ import itertools
 def emptyo(lst):
     return Eq(lst, [])
 
-def constructList(lst, knownVarList=[], minLength=0, maxLength=None):
-    def varListHelp(state):
+class ConstructList(Proposition):
+    def __init__(self, lst, knownVarList=[], minLength=0, maxLength=None):
+        self.lst = lst
+        self.knownVarList = knownVarList
+        self.minLength = minLength
+        self.maxLength = maxLength
+
+    def run(self, state):
         s = state.substitution
         c = state.count
-        varList = copy.copy(knownVarList)
-        lstVal = walk(lst, s)
+        varList = copy.copy(self.knownVarList)
+        lstVal = state.reify(self.lst)
         if isinstance(lstVal, list):
-            if (len(lstVal) >= minLength) and (maxLength is None or len(lstVal) <= maxLength) and len(lstVal) >= len(knownVarList):
-                yield from eq(lstVal[:len(knownVarList)], knownVarList)(state)
+            if (len(lstVal) >= self.minLength) and (self.maxLength is None or len(lstVal) <= self.maxLength) and len(lstVal) >= len(self.knownVarList):
+                yield from Eq(lstVal[:len(self.knownVarList)], self.knownVarList).run(state)
             else:
                 return
-        elif not varq(lstVal):
+        elif not isvar(lstVal):
             return
-        elif maxLength is not None and len(knownVarList) > maxLength:
+        elif self.maxLength is not None and len(self.knownVarList) > self.maxLength:
             return
         else:
-            c = c + max(0, minLength - len(knownVarList))
-            varList = varList + [var(n) for n in range(state.count, c)]
+            c = c + max(0, self.minLength - len(self.knownVarList))
+            newState = state
+            for n in range(state.count, c):
+                (newState, newVar) = newState.var()
+                varList.append(newVar)
             while(True):
-                yield from eq(lst, varList)(State(s, c))
-                varList.append(var(c))
-                c += 1
-    return generate(varListHelp)
+                yield from Eq(self.lst, varList).run(newState)
+                (newState, newVar) = newState.var()
+                varList.append(newVar)
 
-def firsto(lst, first):
-    def firstoHelp(state):
-        if not(isinstance(lst,list) or varq(lst)):
-            return mzero
-        elif isinstance(lst, list):
-            if(len(lst) == 0):
-                return mzero
+class Firsto(Proposition):
+    def __init__(self, lst, first):
+        self.lst = lst
+        self.first = first
+
+    def __run__(self, state):
+        if not(isinstance(self.lst,list) or isvar(self.lst)):
+            yield from mzero
+        elif isinstance(self.lst, list):
+            if(len(self.lst) == 0):
+                yield from mzero
             else:
-                return eq(lst[0], first)(state)
-        elif varq(lst):
-            return constructList(lst, [first])(state)
+                yield from Eq(self.lst[0], self.first).run(state)
+        elif isvar(self.lst):
+            yield from ConstructList(self.lst, [self.first]).run(state)
         else:
-            return mzero
-    return generate(firstoHelp)
+            yield from mzero
 
-def resto(lst, rest):
+def Resto(lst, rest):
+    def __init__(self, lst, rest):
+        self.lst = lst
+        self.rest = rest
+
     def restPairGen(state):
         yield from conj(eq(lst, []),
                         eq(rest, []))(state)
@@ -60,20 +75,20 @@ def resto(lst, rest):
             headless.append(var(count))
             headed.append(var(count))
             count += 1
-    def restoHelp(state):
-        lst_val = walk(lst, state.substitution)
-        rest_val = walk(rest, state.substitution)
-        if not(isinstance(lst_val, list) or varq(lst_val)):
+
+    def __run__(state):
+        lst_val = state.reify(lst)
+        rest_val = state.reify(rest)
+        if not(isinstance(lst_val, list) or isvar(lst_val)):
             return mzero
-        elif not(isinstance(rest_val, list) or varq(rest_val)):
+        elif not(isinstance(rest_val, list) or isvar(rest_val)):
             return mzero
         elif isinstance(lst_val, list):
-            return eq(lst_val[1:], rest)(state)
+            return Eq(lst_val[1:], rest).run(state)
         elif isinstance(rest_val, list):
-            return call_fresh(lambda lstFirst: eq(lst, [lstFirst] + rest_val))(state)
+            return Fresh(lambda lstFirst: Eq(lst, [lstFirst] + rest_val)).run(state)
         else:
             return restPairGen(state)
-    return generate(restoHelp)
 
 def conso(elem, lst, elemAndLst):
     return conj(firsto(elemAndLst, elem),
