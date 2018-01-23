@@ -63,12 +63,12 @@ class State(object):
     def var(self, identifier=None, name=None):
         if identifier is None:
             identifier = self.count
-            self.count += 1
-        assert identifier < self.count, "ID is out of range."
+            nextCount  = self.count + 1
+        else:
+            nextCount = self.count
+        assert identifier < nextCount, "ID is out of range."
         newVar = unification.var(identifier)
-        if name:
-            self.nameTable[newVar] = name
-        return (State(self.substitution, self.count, {newVar:name, **self.nameTable} if name else self.nameTable, self.valid), newVar)
+        return (State(self.substitution, nextCount, {newVar:name, **self.nameTable} if name else self.nameTable, self.valid), newVar)
 
 
 mzero = iter([])
@@ -155,13 +155,12 @@ class Conj(Connective):
             yield from self.goals[0].run(state)
             return
 
+        import pdb; pdb.set_trace()
         anyStreams = True
         goalStreams = [[self.goals[0].run(state)]] + ([[]] * (len(self.goals) - 1))
-        goals = list(self.goals[1:]) + [None]
         while anyStreams:
-            newStreams = [[]] * len(goals)
             anyStreams = False
-            for goal, index in zip(goals, range(0, len(goals))):
+            for index in range(0, len(goals)):
                 stateStreams = goalStreams[index]
 
                 if stateStreams:
@@ -169,15 +168,16 @@ class Conj(Connective):
                     restStreams = stateStreams[1:]
                     try:
                         nextState = stateStream.__next__()
-                        restStreams.append(nextState)
-                        if goal:
+                        restStreams.append(stateStream)
+                        if (index + 1) == len(goals):
+                            yield nextState
+                        else:
                             newStream = goal.run(nextState)
                             goalStreams[index + 1].append(newStream)
-                        else:
-                            yield nextState
                     except StopIteration:
                         pass
                     if anyStreams or restStreams:
                         anyStreams = True
                     newStreams[index] = restStreams
+            goalStreams = newStreams
 

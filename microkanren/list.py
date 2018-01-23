@@ -1,4 +1,4 @@
-from microkanren.ukanren import *
+from ukanren import *
 import copy
 import itertools
 
@@ -28,6 +28,7 @@ class ConstructList(Proposition):
             return
         else:
             c = c + max(0, self.minLength - len(self.knownVarList))
+            print("c: %i" % c)
             newState = state
             for n in range(state.count, c):
                 (newState, newVar) = newState.var()
