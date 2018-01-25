@@ -55,67 +55,62 @@ class Firsto(Proposition):
         else:
             yield from mzero
 
-def Resto(lst, rest):
+class Resto(Proposition):
     def __init__(self, lst, rest):
         self.lst = lst
         self.rest = rest
 
-    def restPairGen(state):
-        yield from conj(eq(lst, []),
-                        eq(rest, []))(state)
-        substitution = state.substitution
+    def restPairGen(self, state):
+        yield from Conj(Eq(self.lst, []),
+                        Eq(self.rest, [])).run(state)
+        substitution = copy.copy(state.substitution)
         count = state.count
-        headless = []
-        first = var(count)
-        headed = [first]
-        count += 1
+        (newState, first) = state.var()
+        fullList = [first]
         while True:
-            yield conj(eq(lst, headed),
-                       eq(rest, headless))(State(substitution, count))
-            headless.append(var(count))
-            headed.append(var(count))
-            count += 1
+            yield from Conj(Eq(self.lst, fullList),
+                          Eq(self.rest, fullList[1:])).run(newState)
+            (newState, newVar) = newState.var()
+            fullList = fullList + [newVar]
 
-    def __run__(state):
-        lst_val = state.reify(lst)
-        rest_val = state.reify(rest)
+    def __run__(self, state):
+        lst_val = state.reify(self.lst)
+        rest_val = state.reify(self.rest)
         if not(isinstance(lst_val, list) or isvar(lst_val)):
-            return mzero
+            yield from mzero
         elif not(isinstance(rest_val, list) or isvar(rest_val)):
-            return mzero
+            yield from mzero
         elif isinstance(lst_val, list):
-            return Eq(lst_val[1:], rest).run(state)
+            yield from Eq(lst_val[1:], self.rest).run(state)
         elif isinstance(rest_val, list):
-            return Fresh(lambda lstFirst: Eq(lst, [lstFirst] + rest_val)).run(state)
+            yield from Fresh(lambda lstFirst: Eq(self.lst, [lstFirst] + rest_val)).run(state)
         else:
-            return restPairGen(state)
+            yield from self.restPairGen(state)
 
 def conso(elem, lst, elemAndLst):
-    return conj(firsto(elemAndLst, elem),
-                resto(elemAndLst, lst))
+    return Conj(Resto(elemAndLst, lst),
+               Firsto(elemAndLst, elem))
 
 def membero(elem, lst):
-    isFirst  = firsto(lst, elem)
-    isInRest = call_fresh(lambda first, rest:\
-                                 conj(resto(lst, rest),\
-                                      firsto(lst, first),\
+    isFirst  = Firsto(lst, elem)
+    isInRest = Fresh(lambda first, rest:\
+                                 Conj(Resto(lst, rest),\
+                                      Firsto(lst, first),\
                                       membero(elem, rest)))
-    return disj(isFirst, isInRest)
+    return Disj(isFirst, isInRest)
 
 def appendo(list1, list2, listCombined):
-    def appendoHelp(state):
-        allEmpty = conj(eq(list1, []), eq(list2, []), eq(listCombined, []))
-        list1Empty = call_fresh(lambda first, rest: \
-                                      conj(eq(list1, []), \
-                                           eq(list2, listCombined), \
+    allEmpty = Conj(Eq(list1, []), Eq(list2, []), Eq(listCombined, []))
+    list1Empty = Fresh(lambda first, rest: \
+                                      Conj(Eq(list1, []), \
+                                           Eq(list2, listCombined), \
                                            conso(first, rest, listCombined)))
-        list2Empty = call_fresh(lambda first, rest: \
-                                      conj(eq(list2, []), \
-                                           eq(list1, listCombined), \
+    list2Empty = Fresh(lambda first, rest: \
+                                      Conj(Eq(list2, []), \
+                                           Eq(list1, listCombined), \
                                            conso(first, rest, listCombined)))
-        recurse = call_fresh(lambda first, lrest, crest: \
-                                       conj(conso(first, lrest, list1), \
+    recurse = Fresh(lambda first, lrest, crest: \
+                                       Conj(conso(first, lrest, list1), \
                                             conso(first, crest, listCombined), \
                                             appendo(lrest, list2, crest)))
-        return disj(allEmpty, list1Empty, list2Empty, recurse)(state)
-    return generate(appendoHelp)
+    return Disj(allEmpty, list1Empty, list2Empty, recurse)
