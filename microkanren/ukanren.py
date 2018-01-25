@@ -37,18 +37,18 @@ class State(object):
             return "State Invalid"
 
     def update(self, substitution=None, count=None, nameTable=None, valid=None):
-        substitution = self.substitution if substitution is None else substitution
+        substitution = copy.copy(self.substitution) if substitution is None else substitution
         count = self.count if count is None else count
-        nameTable = self.nameTable if nameTable is None else nameTable
+        nameTable = copy.copy(self.nameTable) if nameTable is None else nameTable
         valid = self.valid if valid is None else valid
         return State(substitution, count, nameTable, valid)
 
     def addVariables(self, count=1):
-        return State(self.substitution, self.count + count, self.nameTable, self.valid)
+        return self.update(count=self.count + count)
 
     def ext_s(self, additionalSubstitutions):
         """Add a value v to variable x for the substitution"""
-        return State({**additionalSubstitutions, **self.substitution}, self.count, self.nameTable, self.valid)
+        return self.update(substitution={**additionalSubstitutions, **self.substitution})
 
     def reify(self, term):
         return unification.reify(term, self.substitution)
@@ -56,9 +56,9 @@ class State(object):
     def unify(self, left, right):
         newSub = unification.unify(left, right, self.substitution)
         if newSub == False:
-            return State(valid=False)
+            return self.update(valid=False)
         else:
-            return State(newSub, self.count, self.nameTable, self.valid)
+            return self.update(newSub)
 
     def var(self, identifier=None, name=None):
         if identifier is None:
@@ -68,7 +68,10 @@ class State(object):
             nextCount = self.count
         assert identifier < nextCount, "ID is out of range."
         newVar = unification.var(identifier)
-        return (State(self.substitution, nextCount, {newVar:name, **self.nameTable} if name else self.nameTable, self.valid), newVar)
+        if name:
+            return (self.update(count=nextCount, nameTable={newVar:name, **self.nameTable}), newVar)
+        else:
+            return (self.update(count=nextCount), newVar)
 
 
 mzero = iter([])
@@ -155,29 +158,26 @@ class Conj(Connective):
             yield from self.goals[0].run(state)
             return
 
-        import pdb; pdb.set_trace()
         anyStreams = True
-        goalStreams = [[self.goals[0].run(state)]] + ([[]] * (len(self.goals) - 1))
+        goalStreams = [[self.goals[0].run(state)]] + [[] for i in range(0, len(self.goals))]
         while anyStreams:
             anyStreams = False
-            for index in range(0, len(goals)):
-                stateStreams = goalStreams[index]
+            for goalStreamIndex in range(0, len(self.goals)):
+                newStreams = []
+                stateStreams = goalStreams[goalStreamIndex]
 
-                if stateStreams:
-                    stateStream = stateStreams[0]
-                    restStreams = stateStreams[1:]
+                for stateStream in stateStreams:
                     try:
                         nextState = stateStream.__next__()
-                        restStreams.append(stateStream)
-                        if (index + 1) == len(goals):
+                        newStreams.append(stateStream)
+                        if (goalStreamIndex + 1) == len(self.goals):
                             yield nextState
                         else:
-                            newStream = goal.run(nextState)
-                            goalStreams[index + 1].append(newStream)
+                            newStream = self.goals[goalStreamIndex + 1].run(nextState)
+                            goalStreams[goalStreamIndex + 1].append(newStream)
                     except StopIteration:
                         pass
-                    if anyStreams or restStreams:
-                        anyStreams = True
-                    newStreams[index] = restStreams
-            goalStreams = newStreams
+                if anyStreams or newStreams:
+                    anyStreams = True
+                goalStreams[goalStreamIndex] = newStreams
 

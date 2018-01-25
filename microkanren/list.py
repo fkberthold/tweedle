@@ -28,15 +28,14 @@ class ConstructList(Proposition):
             return
         else:
             c = c + max(0, self.minLength - len(self.knownVarList))
-            print("c: %i" % c)
             newState = state
             for n in range(state.count, c):
                 (newState, newVar) = newState.var()
-                varList.append(newVar)
+                varList = varList + [newVar]
             while(True):
                 yield from Eq(self.lst, varList).run(newState)
                 (newState, newVar) = newState.var()
-                varList.append(newVar)
+                varList = varList + [newVar]
 
 class Firsto(Proposition):
     def __init__(self, lst, first):
