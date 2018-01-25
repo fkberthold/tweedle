@@ -1,33 +1,22 @@
 import sys
-from microkanren.urkanren import *
+from microkanren.ukanren import *
 from microkanren.list import *
 
-empty = State()
-
 def inordero(left, right, lst):
-    isNext = call_fresh(lambda rest: conj(conso(left, rest, lst), firsto(rest, right)))
-    inRest = call_fresh(lambda first, rest: conj(conso(first, rest, lst), inordero(left, right, rest)))
-    return disj(isNext, inRest)
+    isNext = Fresh(lambda rest: Conj(conso(left, rest, lst), Firsto(rest, right)))
+    inRest = Fresh(lambda first, rest: Conj(conso(first, rest, lst), inordero(left, right, rest)))
+    return Disj(isNext, inRest)
 
 def isnexto(x, y, lst):
-    return disj(inordero(x, y, lst), inordero(y, x, lst))
+    return Disj(inordero(x, y, lst), inordero(y, x, lst))
 
 def indexoIs(index, val, lst):
     if index <= 0:
-        return conj(firsto(lst, val))
+        return Conj(Firsto(lst, val))
     else:
-        return call_fresh(lambda rest:
-                          conj(resto(lst, rest),
+        return Fresh(lambda rest:
+                          Conj(Resto(lst, rest),
                                indexoIs(index - 1, val, rest)))
-
-def notEq(left, right):
-    def notEqHelp(state):
-        unified = unify(left, right, state.substitution)
-        if isinstance(unified, dict):
-            return mzero
-        else:
-            return unit(state)
-    return generate(notEqHelp)
 
 def deepWalk(term, substitution):
     if isinstance(term, LogicVariable):
@@ -56,7 +45,7 @@ def disp(stream):
     for val in stream:
         print("=========")
         print("Step: %i" % stepCount)
-        print(collapse(val))
+        print((val))
         stepCount = stepCount + 1
         sys.stdout.flush()
 
@@ -96,33 +85,33 @@ drinki = 3
 brandi = 4
 
 def isHouse(var):
-    return call_fresh(lambda nationality, pet, color, drink, brand:\
-                    eq(var, [nationality, pet, color, drink, brand]))
+    return Fresh(lambda nationality, pet, color, drink, brand:\
+                    Eq(var, [nationality, pet, color, drink, brand]))
 
 def aHouse(street, index1, val1, index2, val2):
-    return call_fresh(lambda house:\
-                      conj(membero(house, street),\
+    return Fresh(lambda house:\
+                      Conj(membero(house, street),\
                            indexoIs(index1, val1, house),\
                            indexoIs(index2, val2, house)))
 
 def neighbors(street, index1, val1, index2, val2):
-    return call_fresh(lambda house1, house2:
-                      conj(isnexto(house1, house2, street),
+    return Fresh(lambda house1, house2:
+                      Conj(isnexto(house1, house2, street),
                            indexoIs(index1, val1, house1),
                            indexoIs(index2, val2, house2)))
 
 def rule0(street):
-    return call_fresh(lambda house: conj(membero(house, street), indexoIs(peti, "zebra", house)))
+    return Fresh(lambda house: Conj(membero(house, street), indexoIs(peti, "zebra", house)))
 
 def rule1(street):
     """1. There are five houses."""
-    return call_fresh(lambda house0, house1, house2, house3, house4:\
-                          conj(isHouse(house0),\
+    return Fresh(lambda house0, house1, house2, house3, house4:\
+                          Conj(isHouse(house0),\
                                isHouse(house1),\
                                isHouse(house2),\
                                isHouse(house3),\
                                isHouse(house4),\
-                               eq(street, [house0, house1, house2, house3, house4])))
+                               Eq(street, [house0, house1, house2, house3, house4])))
 
 def rule2(street):
     """2. The English man lives in the red house."""
@@ -138,7 +127,7 @@ def rule4(street):
 
 def rule5(street):
     """5. The green house is immediately to the left of the white house."""
-    return call_fresh(lambda left, right: conj(
+    return Fresh(lambda left, right: Conj(
                       inordero(left, right, street),\
                       indexoIs(colori, green, left),\
                       indexoIs(colori, white, right)))
@@ -156,13 +145,13 @@ def rule8(street):
 
 def rule9(street):
     """9. In the middle house they drink milk."""
-    return call_fresh(lambda house: conj(\
+    return Fresh(lambda house: Conj(\
                       indexoIs(2, house, street),\
                       indexoIs(drinki, milk, house)))
 
 def rule10(street):
     """10. The Norwegian lives in the first house."""
-    return call_fresh(lambda house: conj(\
+    return Fresh(lambda house: Conj(\
                       indexoIs(0, house, street),
                       indexoIs(nati, norwegian, house)))
 
@@ -190,8 +179,8 @@ def rule16(street):
     """16. They drink water in a house next to the house where they smoke Blend."""
     return neighbors(street, drinki, water, brandi, blend)
 
-rules = call_fresh(lambda st:\
-                   conj(rule1(st),
+rules = Fresh(lambda st:\
+                   Conj(rule1(st),
                         rule2(st),
                         rule3(st),
                         rule4(st),
@@ -209,5 +198,5 @@ rules = call_fresh(lambda st:\
                         rule16(st),
                         rule0(st)))
 
-disp(rules(empty))
+disp(rules.run())
 

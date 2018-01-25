@@ -1,4 +1,4 @@
-from ukanren import *
+from microkanren.ukanren import *
 import copy
 import itertools
 
