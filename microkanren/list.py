@@ -15,14 +15,14 @@ class ConstructList(Proposition):
     def run(self, state):
         s = state.substitution
         c = state.count
-        varList = copy.copy(self.knownVarList)
+        varList = self.knownVarList
         lstVal = state.reify(self.lst)
         if isinstance(lstVal, list):
             if (len(lstVal) >= self.minLength) and (self.maxLength is None or len(lstVal) <= self.maxLength) and len(lstVal) >= len(self.knownVarList):
                 yield from Eq(lstVal[:len(self.knownVarList)], self.knownVarList).run(state)
             else:
                 return
-        elif not isvar(lstVal):
+        elif not varq(lstVal):
             return
         elif self.maxLength is not None and len(self.knownVarList) > self.maxLength:
             return
@@ -43,14 +43,14 @@ class Firsto(Proposition):
         self.first = first
 
     def __run__(self, state):
-        if not(isinstance(self.lst,list) or isvar(self.lst)):
+        if not(isinstance(self.lst,list) or varq(self.lst)):
             yield from mzero
         elif isinstance(self.lst, list):
             if(len(self.lst) == 0):
                 yield from mzero
             else:
                 yield from Eq(self.lst[0], self.first).run(state)
-        elif isvar(self.lst):
+        elif varq(self.lst):
             yield from ConstructList(self.lst, [self.first]).run(state)
         else:
             yield from mzero
@@ -63,8 +63,6 @@ class Resto(Proposition):
     def restPairGen(self, state):
         yield from Conj(Eq(self.lst, []),
                         Eq(self.rest, [])).run(state)
-        substitution = copy.copy(state.substitution)
-        count = state.count
         (newState, first) = state.var()
         fullList = [first]
         while True:
@@ -76,9 +74,9 @@ class Resto(Proposition):
     def __run__(self, state):
         lst_val = state.reify(self.lst)
         rest_val = state.reify(self.rest)
-        if not(isinstance(lst_val, list) or isvar(lst_val)):
+        if not(isinstance(lst_val, list) or varq(lst_val)):
             yield from mzero
-        elif not(isinstance(rest_val, list) or isvar(rest_val)):
+        elif not(isinstance(rest_val, list) or varq(rest_val)):
             yield from mzero
         elif isinstance(lst_val, list):
             yield from Eq(lst_val[1:], self.rest).run(state)

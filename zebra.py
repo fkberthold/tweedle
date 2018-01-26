@@ -1,6 +1,7 @@
 import sys
 from microkanren.ukanren import *
 from microkanren.list import *
+import unification
 
 def inordero(left, right, lst):
     isNext = Fresh(lambda rest: Conj(conso(left, rest, lst), Firsto(rest, right)))
@@ -198,5 +199,6 @@ rules = Fresh(lambda st:\
                         rule16(st),
                         rule0(st)))
 
-disp(rules.run())
+print(rules.run().__next__())
+
 
