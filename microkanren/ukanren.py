@@ -28,12 +28,14 @@ def varq(value):
 
 class State(object):
     """A goal is ..."""
-    def __init__(self, substitution={}, count=0, valid=True):
+    updateCounter = 0
+    def __init__(self, substitution={}, count=0, varQueue=None, valid=True):
         assert count >= 0
         assert len(substitution) <= count
         self.count = count
         self.substitution = substitution
         self.valid = valid
+        self.varQueue = varQueue
 
     def __hash__(self):
         return hash((self.count, tuple(self.substitution.keys()), tuple(self.substitution.values())))
@@ -55,16 +57,20 @@ class State(object):
             return "State Invalid"
 
     def update(self, substitution=None, count=None, valid=None):
+#        State.updateCounter += 1
+#        print(State.updateCounter)
         if valid == False:
             return State({}, 0, valid=False)
         else:
             substitution = copy.copy(self.substitution) if substitution is None else substitution
+            for (var, value) in self.varQueue if self.varQueue else []:
+                substitution[var] = value
             count = self.count if count is None else count
             valid = self.valid if valid is None else valid
-            return State(substitution, count, valid)
+            return State(substitution, count, None, valid)
 
     def addVariables(self, count=1):
-        return self.update(count=self.count + count)
+        return State(self.substitution, count=self.count + count, varQueue=self.varQueue if self.varQueue else [], valid=self.valid)
 
     def ext_s(self, additionalSubstitutions):
         """Add a value v to variable x for the substitution"""
@@ -100,12 +106,19 @@ class State(object):
     def var(self, identifier=None, name=None):
         if identifier is None:
             identifier = self.count
-            nextCount  = self.count + 1
+            nextState = self.addVariables(1)
         else:
             nextCount = self.count
+            nextState = State(self.substitution, self.count, [], self.valid)
         assert identifier < nextCount, "ID is out of range."
         newVar = LogicVariable(identifier, name)
-        return (self.update(count=nextCount), newVar)
+        return (nextState, newVar)
+
+    def vars(self, count):
+        identifier = self.count
+        nextState = self.addVariables(count)
+        newVars = [LogicVariable(identifier) for identifier in range(self.count - count, self.count)]
+        return (nextState, newVars)
 
 
 mzero = iter([])
@@ -117,6 +130,12 @@ class Goal(object):
     """A goal is ..."""
     def __init__(self):
         self.lastState = None
+
+    def prerun(self, state):
+        try:
+            return self.__prerun__(state)
+        except:
+            return state
 
     def run(self, state=State(), results=None):
         if results is None:
@@ -142,9 +161,17 @@ class Eq(Proposition):
     def __init__(self, left, right):
         self.left = left
         self.right = right
+        self.hasPrerun = False
+
+    def __prerun__(self, state):
+        self.hasPrerun = True
+        return state.unify(self.left, self.right)
 
     def __run__(self, state):
-        yield state.unify(self.left, self.right)
+        if not self.hasPrerun:
+            yield state.unify(self.left, self.right)
+        else:
+            yield state
 
 class Fresh(Goal):
     def __init__(self, function):

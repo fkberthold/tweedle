@@ -27,11 +27,7 @@ class ConstructList(Proposition):
         elif self.maxLength is not None and len(self.knownVarList) > self.maxLength:
             return
         else:
-            c = c + max(0, self.minLength - len(self.knownVarList))
-            newState = state
-            for n in range(state.count, c):
-                (newState, newVar) = newState.var()
-                varList = varList + [newVar]
+            (newState, varList) = state.vars(max(0, self.minLength - len(self.knownVarList)))
             while(True):
                 yield from Eq(self.lst, varList).run(newState)
                 (newState, newVar) = newState.var()
