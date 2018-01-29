@@ -90,7 +90,7 @@ def isHouse(var):
                     Eq(var, [nationality, pet, color, drink, brand]))
 
 def aHouse(street, index1, val1, index2, val2):
-    return Fresh(lambda house:\
+    return Fresh(lambda house, holder1, holder2, holder3:\
                       Conj(membero(house, street),\
                            indexoIs(index1, val1, house),\
                            indexoIs(index2, val2, house)))
@@ -201,6 +201,7 @@ rules = Fresh(lambda st:\
 
 
 startState = rules.prerun(State())
+print(startState)
 print(rules.run(startState).__next__().reify(LogicVariable(0)))
 
 

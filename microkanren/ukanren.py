@@ -28,14 +28,12 @@ def varq(value):
 
 class State(object):
     """A goal is ..."""
-    updateCounter = 0
-    def __init__(self, substitution={}, count=0, varQueue=None, valid=True):
+    def __init__(self, substitution={}, count=0, valid=True):
         assert count >= 0
         assert len(substitution) <= count, "len(substitution) = %i, count = %i" % (len(substitution), count)
         self.count = count
         self.substitution = substitution
         self.valid = valid
-        self.varQueue = varQueue
 
     def __hash__(self):
         return hash((self.count, tuple(self.substitution.keys()), tuple(self.substitution.values())))
@@ -59,14 +57,12 @@ class State(object):
             return State({}, 0, valid=False)
         else:
             substitution = copy.copy(self.substitution) if substitution is None else substitution
-            for (var, value) in self.varQueue if self.varQueue else []:
-                substitution[var] = value
             count = self.count if count is None else count
             valid = self.valid if valid is None else valid
-            return State(substitution, count, None, valid)
+            return State(substitution, count, valid)
 
     def addVariables(self, count=1):
-        return State(self.substitution, count=self.count + count, varQueue=self.varQueue if self.varQueue else [], valid=self.valid)
+        return State(self.substitution, count=self.count + count, valid=self.valid)
 
     def ext_s(self, additionalSubstitutions):
         """Add a value v to variable x for the substitution"""
@@ -162,7 +158,7 @@ class Connective(Goal):
 
 class Eq(Proposition):
     def __init__(self, left, right):
-        super(Eq, self).__init__()
+        super().__init__()
         self.left = left
         self.right = right
 
@@ -174,7 +170,7 @@ class Eq(Proposition):
 
 class Fresh(Goal):
     def __init__(self, function):
-        super(Fresh, self).__init__()
+        super().__init__()
         self.function = function
 
     def __prerun__(self, state):
@@ -200,7 +196,7 @@ class Fresh(Goal):
 
 class Disj(Connective):
     def __init__(self, *goals):
-        super(Disj, self).__init__()
+        super().__init__()
         assert len(goals) > 0, "A disjunction must contain at least one goal."
         self.goals = goals
 
@@ -228,7 +224,7 @@ class Disj(Connective):
 
 class Conj(Connective):
     def __init__(self, *goals):
-        super(Conj, self).__init__()
+        super().__init__()
         assert len(goals) > 0, "A conjunction must contain at least one goal."
         self.goals = goals
 

@@ -7,7 +7,7 @@ def emptyo(lst):
 
 class ConstructList(Proposition):
     def __init__(self, lst, knownVarList=[], minLength=0, maxLength=None):
-        super(ConstructList, self).__init__()
+        super().__init__()
         self.lst = lst
         self.knownVarList = knownVarList
         self.minLength = minLength
@@ -36,26 +36,43 @@ class ConstructList(Proposition):
 
 class Firsto(Proposition):
     def __init__(self, lst, first):
-        super(Firsto, self).__init__()
+        super().__init__()
         self.lst = lst
         self.first = first
 
+    def __prerun__(self, state):
+        lst = state.reify(self.lst)
+        first = state.reify(self.first)
+        if not(isinstance(lst,list) or varq(lst)):
+            return state.update(valid=False)
+        elif isinstance(lst, list):
+            if(len(lst) == 0):
+                return state.update(valid=False)
+            else:
+                return Eq(lst[0], first).prerun(state)
+        elif varq(lst):
+            return state
+        else:
+            return state.update(valid=False)
+
     def __run__(self, state):
-        if not(isinstance(self.lst,list) or varq(self.lst)):
+        lst = state.reify(self.lst)
+        first = state.reify(self.first)
+        if not(isinstance(lst,list) or varq(lst)):
             yield from mzero
-        elif isinstance(self.lst, list):
-            if(len(self.lst) == 0):
+        elif isinstance(lst, list):
+            if(len(lst) == 0):
                 yield from mzero
             else:
-                yield from Eq(self.lst[0], self.first).run(state)
+                yield from Eq(lst[0], first).run(state)
         elif varq(self.lst):
-            yield from ConstructList(self.lst, [self.first]).run(state)
+            yield from ConstructList(lst, [first]).run(state)
         else:
             yield from mzero
 
 class Resto(Proposition):
     def __init__(self, lst, rest):
-        super(Resto, self).__init__()
+        super().__init__()
         self.lst = lst
         self.rest = rest
 
@@ -69,6 +86,20 @@ class Resto(Proposition):
                           Eq(self.rest, fullList[1:])).run(newState)
             (newState, newVar) = newState.var()
             fullList = fullList + [newVar]
+
+    def __prerun__(self, state):
+        lst = state.reify(self.lst)
+        rest = state.reify(self.rest)
+        if not(isinstance(lst, list) or varq(lst)):
+            return state.update(valid=False)
+        elif not(isinstance(rest, list) or varq(rest)):
+            return state.update(valid=False)
+        elif isinstance(lst, list):
+            return Eq(lst[1:], self.rest).prerun(state)
+        elif isinstance(rest, list):
+            return Fresh(lambda lstFirst: Eq(self.lst, [lstFirst] + rest_val)).prerun(state)
+        else:
+            return state
 
     def __run__(self, state):
         lst_val = state.reify(self.lst)
