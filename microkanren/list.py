@@ -7,6 +7,7 @@ def emptyo(lst):
 
 class ConstructList(Proposition):
     def __init__(self, lst, knownVarList=[], minLength=0, maxLength=None):
+        super(ConstructList, self).__init__()
         self.lst = lst
         self.knownVarList = knownVarList
         self.minLength = minLength
@@ -35,6 +36,7 @@ class ConstructList(Proposition):
 
 class Firsto(Proposition):
     def __init__(self, lst, first):
+        super(Firsto, self).__init__()
         self.lst = lst
         self.first = first
 
@@ -53,6 +55,7 @@ class Firsto(Proposition):
 
 class Resto(Proposition):
     def __init__(self, lst, rest):
+        super(Resto, self).__init__()
         self.lst = lst
         self.rest = rest
 

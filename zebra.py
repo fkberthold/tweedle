@@ -199,6 +199,8 @@ rules = Fresh(lambda st:\
                         rule16(st),
                         rule0(st)))
 
-print(rules.run().__next__())
+
+startState = rules.prerun(State())
+print(rules.run(startState).__next__().reify(LogicVariable(0)))
 
 

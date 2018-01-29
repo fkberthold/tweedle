@@ -31,7 +31,7 @@ class State(object):
     updateCounter = 0
     def __init__(self, substitution={}, count=0, varQueue=None, valid=True):
         assert count >= 0
-        assert len(substitution) <= count
+        assert len(substitution) <= count, "len(substitution) = %i, count = %i" % (len(substitution), count)
         self.count = count
         self.substitution = substitution
         self.valid = valid
@@ -48,17 +48,13 @@ class State(object):
         if self.valid:
             subs = ""
             for key in self.substitution:
-                if key.name:
-                    subs = subs + ("  %s(%s): %s\n" % (repr(key), key.name, repr(self.substitution[key])))
-                else:
-                    subs = subs + ("  %s: %s\n" % (repr(key), repr(self.substitution[key])))
+                subs = subs + ("  %s: %s\n" % (repr(key), repr(self.substitution[key])))
             return "\nCount: %i\nSubstitutions:\n%s" % (self.count, subs)
         else:
             return "State Invalid"
 
     def update(self, substitution=None, count=None, valid=None):
 #        State.updateCounter += 1
-#        print(State.updateCounter)
         if valid == False:
             return State({}, 0, valid=False)
         else:
@@ -108,16 +104,14 @@ class State(object):
             identifier = self.count
             nextState = self.addVariables(1)
         else:
-            nextCount = self.count
             nextState = State(self.substitution, self.count, [], self.valid)
-        assert identifier < nextCount, "ID is out of range."
+        assert identifier < nextState.count, "count: %i identifier: %i" % (nextState.count, identifier)
         newVar = LogicVariable(identifier, name)
         return (nextState, newVar)
 
     def vars(self, count):
-        identifier = self.count
         nextState = self.addVariables(count)
-        newVars = [LogicVariable(identifier) for identifier in range(self.count - count, self.count)]
+        newVars = [LogicVariable(identifier) for identifier in range(self.count, self.count + count)]
         return (nextState, newVars)
 
 
@@ -130,26 +124,35 @@ class Goal(object):
     """A goal is ..."""
     def __init__(self):
         self.lastState = None
+        self.hasPrerun = False
 
     def prerun(self, state):
-        try:
-            return self.__prerun__(state)
-        except:
-            return state
+        self.hasPrerun = True
+        return self.__prerun__(state)
+
+    def __prerun__(self, state):
+        return state
 
     def run(self, state=State(), results=None):
         if results is None:
             runner = self.__run__(state)
             while True:
-                self.lastState = runner.__next__()
-                if self.lastState.valid:
-                    yield self.lastState
+                try:
+                    self.lastState = runner.__next__()
+                    if self.lastState.valid:
+                        yield self.lastState
+                except StopIteration:
+                    return
         else:
             runner = self.__run__(state)
             for index in range(0, results):
-                self.lastState = runner.__next__()
-                if self.lastState.valid:
-                    yield self.lastState
+                try:
+                    self.lastState = runner.__next__()
+                    if self.lastState.valid:
+                        yield self.lastState
+                except StopIteration:
+                    return
+
 
 class Proposition(Goal):
     pass
@@ -159,40 +162,54 @@ class Connective(Goal):
 
 class Eq(Proposition):
     def __init__(self, left, right):
+        super(Eq, self).__init__()
         self.left = left
         self.right = right
-        self.hasPrerun = False
 
     def __prerun__(self, state):
-        self.hasPrerun = True
         return state.unify(self.left, self.right)
 
     def __run__(self, state):
-        if not self.hasPrerun:
-            yield state.unify(self.left, self.right)
-        else:
-            yield state
+        yield state.unify(self.left, self.right)
 
 class Fresh(Goal):
     def __init__(self, function):
+        super(Fresh, self).__init__()
         self.function = function
 
-    def __run__(self, state):
-        c = state.count
+    def __prerun__(self, state):
         params = signature(self.function).parameters
         arg_count = len(params)
-        new_state = state.addVariables(arg_count)
-        new_vars = []
-        for (number, name) in zip(range(c, new_state.count), params):
-                (new_state, new_var) = new_state.var(number, name)
-                new_vars.append(new_var)
-        goal = self.function(*new_vars)
-        yield from goal.run(new_state)
+        (new_state, self.new_vars) = state.vars(arg_count)
+        for (var, name) in zip(self.new_vars, params):
+            var.name = name
+        self.goal = self.function(*self.new_vars)
+        return self.goal.prerun(new_state)
+
+    def __run__(self, state):
+        if self.hasPrerun:
+            yield from self.goal.run(state)
+        else:
+            params = signature(self.function).parameters
+            arg_count = len(params)
+            (new_state, new_vars) = state.vars(arg_count)
+            for (var, name) in zip(new_vars, params):
+                var.name = name
+            self.goal = self.function(*new_vars)
+            yield from self.goal.run(new_state)
 
 class Disj(Connective):
     def __init__(self, *goals):
+        super(Disj, self).__init__()
         assert len(goals) > 0, "A disjunction must contain at least one goal."
         self.goals = goals
+
+#    def __prerun__(self, state):
+#        for goal in self.goals:
+#            new_state = goal.prerun(state)
+#            if new_state.valid:
+#                return state
+#        return state.update(valid=False)
 
     def __run__(self, state):
         stateStreams = [goal.run(state) for goal in self.goals]
@@ -211,8 +228,17 @@ class Disj(Connective):
 
 class Conj(Connective):
     def __init__(self, *goals):
+        super(Conj, self).__init__()
         assert len(goals) > 0, "A conjunction must contain at least one goal."
         self.goals = goals
+
+    def __prerun__(self, state):
+        new_state = state
+        for goal in self.goals:
+            new_state = goal.prerun(new_state)
+            if not new_state.valid:
+                return new_state
+        return new_state
 
     def __run__(self, state):
         if(len(self.goals) == 1):
