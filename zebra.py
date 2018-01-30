@@ -180,7 +180,7 @@ def rule16(street):
     """16. They drink water in a house next to the house where they smoke Blend."""
     return neighbors(street, drinki, water, brandi, blend)
 
-rules = Fresh(lambda st:\
+rules = Call(lambda st:\
                    Conj(rule1(st),
                         rule2(st),
                         rule3(st),
@@ -202,6 +202,6 @@ rules = Fresh(lambda st:\
 
 startState = rules.prerun(State())
 print(startState)
-print(rules.run(startState).__next__().reify(LogicVariable(0)))
+print(rules.run(startState).__next__())
 
 

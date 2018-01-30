@@ -6,12 +6,15 @@ import sys
 from inspect import signature
 
 class LogicVariable(object):
-    def __init__(self, identifier, name=None):
-        self.id = identifier
+    nextId = 0
+
+    def __init__(self, name=None):
+        self.id = LogicVariable.nextId
+        LogicVariable.nextId += 1
         self.name = name
 
-    def __eq__(self, other):
-        return isinstance(other, LogicVariable) and self.id == other.id
+    def eq(self, other):
+        return Eq(self, other)
 
     def __repr__(self):
         if self.name:
@@ -28,41 +31,36 @@ def varq(value):
 
 class State(object):
     """A goal is ..."""
-    def __init__(self, substitution={}, count=0, valid=True):
-        assert count >= 0
-        assert len(substitution) <= count, "len(substitution) = %i, count = %i" % (len(substitution), count)
-        self.count = count
+    def __init__(self, substitution={}, valid=True):
         self.substitution = substitution
         self.valid = valid
 
     def __hash__(self):
-        return hash((self.count, tuple(self.substitution.keys()), tuple(self.substitution.values())))
+        return hash((tuple(self.substitution.keys()), tuple(self.substitution.values())))
 
     def __eq__(self, other):
         assert isinstance(other, State)
-        return self.count == other.count and self.substitution == other.substitution
+        return self.substitution == other.substitution
 
     def __repr__(self):
         if self.valid:
             subs = ""
             for key in self.substitution:
                 subs = subs + ("  %s: %s\n" % (repr(key), repr(self.substitution[key])))
-            return "\nCount: %i\nSubstitutions:\n%s" % (self.count, subs)
+            return "Substitutions:\n%s" % (subs)
         else:
             return "State Invalid"
 
-    def update(self, substitution=None, count=None, valid=None):
-#        State.updateCounter += 1
+    def update(self, substitution=None, valid=None):
         if valid == False:
-            return State({}, 0, valid=False)
+            return State({}, valid=False)
         else:
             substitution = copy.copy(self.substitution) if substitution is None else substitution
-            count = self.count if count is None else count
             valid = self.valid if valid is None else valid
-            return State(substitution, count, valid)
+            return State(substitution, valid)
 
     def addVariables(self, count=1):
-        return State(self.substitution, count=self.count + count, valid=self.valid)
+        return self
 
     def ext_s(self, additionalSubstitutions):
         """Add a value v to variable x for the substitution"""
@@ -78,7 +76,7 @@ class State(object):
     def unify(self, left, right):
         left = self.reify(left)
         right = self.reify(right)
-        if varq(left) and varq(right) and left == right:
+        if varq(left) and varq(right) and left.id == right.id:
             return self.update()
         elif varq(left):
             return self.ext_s({left: right})
@@ -97,17 +95,15 @@ class State(object):
 
     def var(self, identifier=None, name=None):
         if identifier is None:
-            identifier = self.count
             nextState = self.addVariables(1)
         else:
-            nextState = State(self.substitution, self.count, [], self.valid)
-        assert identifier < nextState.count, "count: %i identifier: %i" % (nextState.count, identifier)
-        newVar = LogicVariable(identifier, name)
+            nextState = State(self.substitution, [], self.valid)
+        newVar = LogicVariable(name)
         return (nextState, newVar)
 
     def vars(self, count):
         nextState = self.addVariables(count)
-        newVars = [LogicVariable(identifier) for identifier in range(self.count, self.count + count)]
+        newVars = [LogicVariable() for identifier in range(count)]
         return (nextState, newVars)
 
 
@@ -121,6 +117,12 @@ class Goal(object):
     def __init__(self):
         self.lastState = None
         self.hasPrerun = False
+
+    def __and__(self, other):
+        return Conj(self, other)
+
+    def __or__(self, other):
+        return Disj(self, other)
 
     def prerun(self, state):
         self.hasPrerun = True
@@ -149,14 +151,13 @@ class Goal(object):
                 except StopIteration:
                     return
 
-
-class Proposition(Goal):
+class Relation(Goal):
     pass
 
 class Connective(Goal):
     pass
 
-class Eq(Proposition):
+class Eq(Relation):
     def __init__(self, left, right):
         super().__init__()
         self.left = left
@@ -193,6 +194,28 @@ class Fresh(Goal):
                 var.name = name
             self.goal = self.function(*new_vars)
             yield from self.goal.run(new_state)
+
+class Call(Fresh):
+    def __run__(self, state):
+        if self.hasPrerun:
+            for result in self.goal.run(state):
+                reified_sub = {}
+                for var in self.new_vars:
+                    reified_sub[var] = result.reify(var)
+                yield state.update(substitution=reified_sub)
+        else:
+            params = signature(self.function).parameters
+            arg_count = len(params)
+            (new_state, new_vars) = state.vars(arg_count)
+            for (var, name) in zip(new_vars, params):
+                var.name = name
+            self.goal = self.function(*new_vars)
+            for result in self.goal.run(new_state):
+                reified_state = {}
+                for var in new_vars:
+                    reified_state[var] = result.reify(var)
+                yield reified_state
+
 
 class Disj(Connective):
     def __init__(self, *goals):

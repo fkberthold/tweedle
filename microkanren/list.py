@@ -5,7 +5,7 @@ import itertools
 def emptyo(lst):
     return Eq(lst, [])
 
-class ConstructList(Proposition):
+class ConstructList(Relation):
     def __init__(self, lst, knownVarList=[], minLength=0, maxLength=None):
         super().__init__()
         self.lst = lst
@@ -34,7 +34,7 @@ class ConstructList(Proposition):
                 (newState, newVar) = newState.var()
                 varList = varList + [newVar]
 
-class Firsto(Proposition):
+class Firsto(Relation):
     def __init__(self, lst, first):
         super().__init__()
         self.lst = lst
@@ -70,20 +70,18 @@ class Firsto(Proposition):
         else:
             yield from mzero
 
-class Resto(Proposition):
+class Resto(Relation):
     def __init__(self, lst, rest):
         super().__init__()
         self.lst = lst
         self.rest = rest
 
     def restPairGen(self, state):
-        yield from Conj(Eq(self.lst, []),
-                        Eq(self.rest, [])).run(state)
+        yield from (Eq(self.lst, []) & Eq(self.rest, [])).run(state)
         (newState, first) = state.var()
         fullList = [first]
         while True:
-            yield from Conj(Eq(self.lst, fullList),
-                          Eq(self.rest, fullList[1:])).run(newState)
+            yield from (Eq(self.lst, fullList) & Eq(self.rest, fullList[1:])).run(newState)
             (newState, newVar) = newState.var()
             fullList = fullList + [newVar]
 
@@ -116,29 +114,20 @@ class Resto(Proposition):
             yield from self.restPairGen(state)
 
 def conso(elem, lst, elemAndLst):
-    return Conj(Resto(elemAndLst, lst),
-               Firsto(elemAndLst, elem))
+    return Resto(elemAndLst, lst) & Firsto(elemAndLst, elem)
 
 def membero(elem, lst):
     isFirst  = Firsto(lst, elem)
     isInRest = Fresh(lambda first, rest:\
-                                 Conj(Resto(lst, rest),\
-                                      Firsto(lst, first),\
-                                      membero(elem, rest)))
-    return Disj(isFirst, isInRest)
+                                 Resto(lst, rest) & Firsto(lst, first) & membero(elem, rest))
+    return isFirst | isInRest
 
 def appendo(list1, list2, listCombined):
-    allEmpty = Conj(Eq(list1, []), Eq(list2, []), Eq(listCombined, []))
+    allEmpty = Eq(list1, []) & Eq(list2, []) & Eq(listCombined, [])
     list1Empty = Fresh(lambda first, rest: \
-                                      Conj(Eq(list1, []), \
-                                           Eq(list2, listCombined), \
-                                           conso(first, rest, listCombined)))
-    list2Empty = Fresh(lambda first, rest: \
-                                      Conj(Eq(list2, []), \
-                                           Eq(list1, listCombined), \
-                                           conso(first, rest, listCombined)))
+                             Eq(list1, []) & Eq(list2, listCombined) & conso(first, rest, listCombined))
+    list2Empty = Fresh(lambda first, rest:
+                             Eq(list2, []) & Eq(list1, listCombined) & conso(first, rest, listCombined))
     recurse = Fresh(lambda first, lrest, crest: \
-                                       Conj(conso(first, lrest, list1), \
-                                            conso(first, crest, listCombined), \
-                                            appendo(lrest, list2, crest)))
-    return Disj(allEmpty, list1Empty, list2Empty, recurse)
+                             conso(first, lrest, list1) & conso(first, crest, listCombined) & appendo(lrest, list2, crest))
+    return allEmpty | list1Empty | list2Empty | recurse
