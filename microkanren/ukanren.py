@@ -1,3 +1,4 @@
+import abc
 import types
 import collections
 import copy
@@ -5,12 +6,12 @@ import traceback
 import sys
 from inspect import signature
 
-class LogicVariable(object):
+class LVar(object):
     nextId = 0
 
     def __init__(self, name=None):
-        self.id = LogicVariable.nextId
-        LogicVariable.nextId += 1
+        self.id = LVar.nextId
+        LVar.nextId += 1
         self.name = name
 
     def eq(self, other):
@@ -26,7 +27,7 @@ class LogicVariable(object):
         return self.id
 
 def varq(value):
-    return isinstance(value, LogicVariable)
+    return isinstance(value, LVar)
 
 
 class State(object):
@@ -98,12 +99,12 @@ class State(object):
             nextState = self.addVariables(1)
         else:
             nextState = State(self.substitution, [], self.valid)
-        newVar = LogicVariable(name)
+        newVar = LVar(name)
         return (nextState, newVar)
 
     def vars(self, count):
         nextState = self.addVariables(count)
-        newVars = [LogicVariable() for identifier in range(count)]
+        newVars = [LVar() for identifier in range(count)]
         return (nextState, newVars)
 
 
@@ -112,11 +113,15 @@ mzero = iter([])
 def unit(state):
     yield state
 
-class Goal(object):
+class Goal(abc.ABC):
     """A goal is ..."""
+
     def __init__(self):
         self.lastState = None
         self.hasPrerun = False
+        layer = Connective.currentLayer()
+        if(layer):
+            layer.goals.append(self)
 
     def __and__(self, other):
         return Conj(self, other)
@@ -130,6 +135,10 @@ class Goal(object):
 
     def __prerun__(self, state):
         return state
+
+    @abc.abstractmethod
+    def __run__(self, state):
+        return
 
     def run(self, state=State(), results=None):
         if results is None:
@@ -151,17 +160,52 @@ class Goal(object):
                 except StopIteration:
                     return
 
-class Relation(Goal):
+
+class Relation(Goal, abc.ABC):
     pass
 
-class Connective(Goal):
-    pass
+class Connective(Goal, abc.ABC):
+    _layers = []
+    _goals = []
+
+    @classmethod
+    def register(cls, connective):
+        cls._layers.append(connective)
+
+    @classmethod
+    def currentLayer(cls):
+        if cls._layers:
+            return cls._layers[-1]
+        else:
+            return None
+
+    @classmethod
+    def unregister(cls):
+        return cls._layers.pop()
+
+    @property
+    def goals(self):
+        return self._goals
+
+    @goals.setter
+    def goals(self, goals):
+        self._goals = goals
+
+    def __enter__(self):
+        Connective.register(self)
+        return self
+
+    def __exit__(self, *args):
+        Connective.unregister()
 
 class Eq(Relation):
     def __init__(self, left, right):
         super().__init__()
         self.left = left
         self.right = right
+
+    def __repr__(self):
+        return "Eq(%s,%s)" % (self.left, self.right)
 
     def __prerun__(self, state):
         return state.unify(self.left, self.right)
@@ -195,6 +239,36 @@ class Fresh(Goal):
             self.goal = self.function(*new_vars)
             yield from self.goal.run(new_state)
 
+class WithFresh(Connective):
+    def __init__(self, howMany):
+        super().__init__()
+        self.howMany = howMany
+        self.args = [LVar() for count in range(self.howMany)]
+
+    def __enter__(self):
+        super().__enter__()
+        return self
+
+    def __iter__(self):
+        for val in self.args:
+            yield val
+
+    def __repr__(self):
+        if self.goals:
+            return ("Fresh (%i): " % self.howMany) + " & ".join([str(goal) for goal in self.goals])
+        else:
+            return "Fresh"
+
+    def __prerun__(self, state):
+        self.conj = Conj(*self.goals)
+        return self.conj.prerun(state)
+
+    def __run__(self, state):
+        if self.hasPrerun:
+            yield from self.conj.run(state)
+        else:
+            yield from Conj(*self.goals).run(state)
+
 class Call(Fresh):
     def __run__(self, state):
         if self.hasPrerun:
@@ -220,8 +294,7 @@ class Call(Fresh):
 class Disj(Connective):
     def __init__(self, *goals):
         super().__init__()
-        assert len(goals) > 0, "A disjunction must contain at least one goal."
-        self.goals = goals
+        self.goals = list(goals)
 
 #    def __prerun__(self, state):
 #        for goal in self.goals:
@@ -229,6 +302,12 @@ class Disj(Connective):
 #            if new_state.valid:
 #                return state
 #        return state.update(valid=False)
+
+    def __repr__(self):
+        if self.goals:
+            return " | ".join([str(goal) for goal in self.goals])
+        else:
+            return "DISJ"
 
     def __run__(self, state):
         stateStreams = [goal.run(state) for goal in self.goals]
@@ -248,8 +327,13 @@ class Disj(Connective):
 class Conj(Connective):
     def __init__(self, *goals):
         super().__init__()
-        assert len(goals) > 0, "A conjunction must contain at least one goal."
-        self.goals = goals
+        self.goals = list(goals)
+
+    def __repr__(self):
+        if self.goals:
+            return " & ".join([str(goal) for goal in self.goals])
+        else:
+            return "CONJ"
 
     def __prerun__(self, state):
         new_state = state

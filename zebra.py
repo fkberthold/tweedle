@@ -4,9 +4,14 @@ from microkanren.list import *
 import unification
 
 def inordero(left, right, lst):
-    isNext = Fresh(lambda rest: Conj(conso(left, rest, lst), Firsto(rest, right)))
-    inRest = Fresh(lambda first, rest: Conj(conso(first, rest, lst), inordero(left, right, rest)))
-    return Disj(isNext, inRest)
+    with Disj() as ordero:
+        with WithFresh(1) as rest:
+            conso(left, rest, lst)
+            Firsto(rest, right)
+        with WithFresh(2) as first, rest:
+            conso(first, rest, lst)
+            inordero(left, right, rest)
+    return ordero
 
 def isnexto(x, y, lst):
     return Disj(inordero(x, y, lst), inordero(y, x, lst))
@@ -19,36 +24,6 @@ def indexoIs(index, val, lst):
                           Conj(Resto(lst, rest),
                                indexoIs(index - 1, val, rest)))
 
-def deepWalk(term, substitution):
-    if isinstance(term, LogicVariable):
-        value = substitution.get(term, term)
-        if isinstance(value, LogicVariable) and value != term:
-            return deepWalk(value, substitution)
-        elif isinstance(value, list):
-            return deepWalk(value, substitution)
-        else:
-            return value
-    elif isinstance(term, list):
-        return [deepWalk(newTerm, substitution) for newTerm in term]
-    else:
-        return term
-
-def collapse(state):
-    newSub = {}
-    for key in state.substitution:
-        if(key.id == 0):
-            newSub[key] = deepWalk(key, state.substitution)
-    state.substitution = newSub
-    return state
-
-def disp(stream):
-    stepCount = 0
-    for val in stream:
-        print("=========")
-        print("Step: %i" % stepCount)
-        print((val))
-        stepCount = stepCount + 1
-        sys.stdout.flush()
 
 """
 The Zebra puzzle, a.k.a. Einstein's Riddle, is a logic puzzle which is to be solved programmatically. 
@@ -89,17 +64,29 @@ def isHouse(var):
     return Fresh(lambda nationality, pet, color, drink, brand:\
                     Eq(var, [nationality, pet, color, drink, brand]))
 
-def aHouse(street, index1, val1, index2, val2):
-    return Fresh(lambda house, holder1, holder2, holder3:\
-                      Conj(membero(house, street),\
-                           indexoIs(index1, val1, house),\
-                           indexoIs(index2, val2, house)))
+def aHouse(street, nationality=None, pet=None, color=None, drink=None, brand=None):
+    nationality = nationality or LVar()
+    pet = pet or LVar()
+    color = color or LVar()
+    drink = drink or LVar()
+    brand = brand or LVar()
+    return membero([nationality, pet, color, drink, brand], street)
 
-def neighbors(street, index1, val1, index2, val2):
-    return Fresh(lambda house1, house2:
-                      Conj(isnexto(house1, house2, street),
-                           indexoIs(index1, val1, house1),
-                           indexoIs(index2, val2, house2)))
+def neighbors(street, nationality1=None, pet1=None, color1=None, drink1=None, brand1=None,
+                    nationality2=None, pet2=None, color2=None, drink2=None, brand2=None):
+    nationality1 = nationality1 or LVar()
+    pet1 = pet1 or LVar()
+    color1 = color1 or LVar()
+    drink1 = drink1 or LVar()
+    brand1 = brand1 or LVar()
+    nationality2 = nationality2 or LVar()
+    pet2 = pet2 or LVar()
+    color2 = color2 or LVar()
+    drink2 = drink2 or LVar()
+    brand2 = brand2 or LVar()
+    house1 = [nationality1, pet1, color1, drink1, brand1]
+    house2 = [nationality2, pet2, color2, drink2, brand2]
+    return Conj(isnexto(house1, house2, street))
 
 def rule0(street):
     return Fresh(lambda house: Conj(membero(house, street), indexoIs(peti, "zebra", house)))
@@ -116,15 +103,15 @@ def rule1(street):
 
 def rule2(street):
     """2. The English man lives in the red house."""
-    return aHouse(street, nati, english, colori, red)
+    return aHouse(street, nationality=english, color=red)
 
 def rule3(street):
     """3. The Swede has a dog."""
-    return aHouse(street, nati, swede, peti, dog)
+    return aHouse(street, nationality=swede, pet=dog)
 
 def rule4(street):
     """4. The Dane drinks tea."""
-    return aHouse(street, nati, dane, drinki, tea)
+    return aHouse(street, nationality=dane, drink=tea)
 
 def rule5(street):
     """5. The green house is immediately to the left of the white house."""
@@ -134,15 +121,15 @@ def rule5(street):
                       indexoIs(colori, white, right)))
 def rule6(street):
     """6. They drink coffee in the green house."""
-    return aHouse(street, drinki, coffee, colori, green)
+    return aHouse(street, drink=coffee, color=green)
 
 def rule7(street):
     """7. The man who smokes Pall Mall has birds."""
-    return aHouse(street, brandi, pallMall, peti, bird)
+    return aHouse(street, brand=pallMall, pet=bird)
 
 def rule8(street):
     """8. In the yellow house they smoke Dunhill."""
-    return aHouse(street, colori, yellow, brandi, dunhill)
+    return aHouse(street, color=yellow, brand=dunhill)
 
 def rule9(street):
     """9. In the middle house they drink milk."""
@@ -153,32 +140,32 @@ def rule9(street):
 def rule10(street):
     """10. The Norwegian lives in the first house."""
     return Fresh(lambda house: Conj(\
-                      indexoIs(0, house, street),
+                      Firsto(street, house),
                       indexoIs(nati, norwegian, house)))
 
 def rule11(street):
     """11. The man who smokes Blend lives in the house next to the house with cats."""
-    return neighbors(street, brandi, blend, peti, cat)
+    return neighbors(street, brand1=blend, pet2=cat)
 
 def rule12(street):
     """12. In a house next to the house where they have a horse, they smoke Dunhill."""
-    return neighbors(street, peti, horse, brandi, dunhill)
+    return neighbors(street, pet1=horse, brand2=dunhill)
 
 def rule13(street):
     """13. The man who smokes Blue Master drinks beer."""
-    return aHouse(street, brandi, blueMaster, drinki, beer)
+    return aHouse(street, brand=blueMaster, drink=beer)
 
 def rule14(street):
     """14. The German smokes Prince."""
-    return aHouse(street, nati, german, brandi, prince)
+    return aHouse(street, nationality=german, brand=prince)
 
 def rule15(street):
     """15. The Norwegian lives next to the blue house."""
-    return neighbors(street, nati, norwegian, colori, blue)
+    return neighbors(street, nationality1=norwegian, color2=blue)
 
 def rule16(street):
     """16. They drink water in a house next to the house where they smoke Blend."""
-    return neighbors(street, drinki, water, brandi, blend)
+    return neighbors(street, drink1=water, brand2=blend)
 
 rules = Call(lambda st:\
                    Conj(rule1(st),
@@ -203,5 +190,3 @@ rules = Call(lambda st:\
 startState = rules.prerun(State())
 print(startState)
 print(rules.run(startState).__next__())
-
-
