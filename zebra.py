@@ -19,36 +19,6 @@ def indexoIs(index, val, lst):
                           Conj(Resto(lst, rest),
                                indexoIs(index - 1, val, rest)))
 
-def deepWalk(term, substitution):
-    if isinstance(term, LogicVariable):
-        value = substitution.get(term, term)
-        if isinstance(value, LogicVariable) and value != term:
-            return deepWalk(value, substitution)
-        elif isinstance(value, list):
-            return deepWalk(value, substitution)
-        else:
-            return value
-    elif isinstance(term, list):
-        return [deepWalk(newTerm, substitution) for newTerm in term]
-    else:
-        return term
-
-def collapse(state):
-    newSub = {}
-    for key in state.substitution:
-        if(key.id == 0):
-            newSub[key] = deepWalk(key, state.substitution)
-    state.substitution = newSub
-    return state
-
-def disp(stream):
-    stepCount = 0
-    for val in stream:
-        print("=========")
-        print("Step: %i" % stepCount)
-        print((val))
-        stepCount = stepCount + 1
-        sys.stdout.flush()
 
 """
 The Zebra puzzle, a.k.a. Einstein's Riddle, is a logic puzzle which is to be solved programmatically. 
@@ -200,8 +170,6 @@ rules = Call(lambda st:\
                         rule0(st)))
 
 
-startState = rules.prerun(State())
-print(startState)
-print(rules.run(startState).__next__())
+print(rules.run().__next__())
 
 

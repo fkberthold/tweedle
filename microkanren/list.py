@@ -28,10 +28,10 @@ class ConstructList(Relation):
         elif self.maxLength is not None and len(self.knownVarList) > self.maxLength:
             return
         else:
-            (newState, varList) = state.vars(max(0, self.minLength - len(self.knownVarList)))
+            varList = [LogicVariable() for n in range(0, max(0, self.minLength - len(self.knownVarList)))]
             while(True):
-                yield from Eq(self.lst, varList).run(newState)
-                (newState, newVar) = newState.var()
+                yield from Eq(self.lst, varList).run(state)
+                newVar = LogicVariable()
                 varList = varList + [newVar]
 
 class Firsto(Relation):
@@ -39,21 +39,6 @@ class Firsto(Relation):
         super().__init__()
         self.lst = lst
         self.first = first
-
-    def __prerun__(self, state):
-        lst = state.reify(self.lst)
-        first = state.reify(self.first)
-        if not(isinstance(lst,list) or varq(lst)):
-            return state.update(valid=False)
-        elif isinstance(lst, list):
-            if(len(lst) == 0):
-                return state.update(valid=False)
-            else:
-                return Eq(lst[0], first).prerun(state)
-        elif varq(lst):
-            return state
-        else:
-            return state.update(valid=False)
 
     def __run__(self, state):
         lst = state.reify(self.lst)
@@ -78,26 +63,12 @@ class Resto(Relation):
 
     def restPairGen(self, state):
         yield from (Eq(self.lst, []) & Eq(self.rest, [])).run(state)
-        (newState, first) = state.var()
+        first = LogicVariable()
         fullList = [first]
         while True:
-            yield from (Eq(self.lst, fullList) & Eq(self.rest, fullList[1:])).run(newState)
-            (newState, newVar) = newState.var()
+            yield from (Eq(self.lst, fullList) & Eq(self.rest, fullList[1:])).run(state)
+            newVar = LogicVariable
             fullList = fullList + [newVar]
-
-    def __prerun__(self, state):
-        lst = state.reify(self.lst)
-        rest = state.reify(self.rest)
-        if not(isinstance(lst, list) or varq(lst)):
-            return state.update(valid=False)
-        elif not(isinstance(rest, list) or varq(rest)):
-            return state.update(valid=False)
-        elif isinstance(lst, list):
-            return Eq(lst[1:], self.rest).prerun(state)
-        elif isinstance(rest, list):
-            return Fresh(lambda lstFirst: Eq(self.lst, [lstFirst] + rest_val)).prerun(state)
-        else:
-            return state
 
     def __run__(self, state):
         lst_val = state.reify(self.lst)

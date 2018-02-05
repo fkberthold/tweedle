@@ -28,6 +28,9 @@ class LogicVariable(object):
 def varq(value):
     return isinstance(value, LogicVariable)
 
+def vars(numberOfVariables):
+    return [LogicVariable() for count in range(0, numberOfVariables)]
+
 
 class State(object):
     """A goal is ..."""
@@ -58,9 +61,6 @@ class State(object):
             substitution = copy.copy(self.substitution) if substitution is None else substitution
             valid = self.valid if valid is None else valid
             return State(substitution, valid)
-
-    def addVariables(self, count=1):
-        return self
 
     def ext_s(self, additionalSubstitutions):
         """Add a value v to variable x for the substitution"""
@@ -93,19 +93,6 @@ class State(object):
         else:
             return self.update(valid=False)
 
-    def var(self, identifier=None, name=None):
-        if identifier is None:
-            nextState = self.addVariables(1)
-        else:
-            nextState = State(self.substitution, [], self.valid)
-        newVar = LogicVariable(name)
-        return (nextState, newVar)
-
-    def vars(self, count):
-        nextState = self.addVariables(count)
-        newVars = [LogicVariable() for identifier in range(count)]
-        return (nextState, newVars)
-
 
 mzero = iter([])
 
@@ -124,11 +111,7 @@ class Goal(object):
     def __or__(self, other):
         return Disj(self, other)
 
-    def prerun(self, state):
-        self.hasPrerun = True
-        return self.__prerun__(state)
-
-    def __prerun__(self, state):
+    def score(self, state):
         return state
 
     def run(self, state=State(), results=None):
@@ -163,9 +146,6 @@ class Eq(Relation):
         self.left = left
         self.right = right
 
-    def __prerun__(self, state):
-        return state.unify(self.left, self.right)
-
     def __run__(self, state):
         yield state.unify(self.left, self.right)
 
@@ -174,47 +154,28 @@ class Fresh(Goal):
         super().__init__()
         self.function = function
 
-    def __prerun__(self, state):
+    def __run__(self, state):
         params = signature(self.function).parameters
         arg_count = len(params)
-        (new_state, self.new_vars) = state.vars(arg_count)
-        for (var, name) in zip(self.new_vars, params):
+        new_vars = vars(arg_count)
+        for (var, name) in zip(new_vars, params):
             var.name = name
-        self.goal = self.function(*self.new_vars)
-        return self.goal.prerun(new_state)
-
-    def __run__(self, state):
-        if self.hasPrerun:
-            yield from self.goal.run(state)
-        else:
-            params = signature(self.function).parameters
-            arg_count = len(params)
-            (new_state, new_vars) = state.vars(arg_count)
-            for (var, name) in zip(new_vars, params):
-                var.name = name
-            self.goal = self.function(*new_vars)
-            yield from self.goal.run(new_state)
+        self.goal = self.function(*new_vars)
+        yield from self.goal.run(state)
 
 class Call(Fresh):
     def __run__(self, state):
-        if self.hasPrerun:
-            for result in self.goal.run(state):
-                reified_sub = {}
-                for var in self.new_vars:
-                    reified_sub[var] = result.reify(var)
-                yield state.update(substitution=reified_sub)
-        else:
-            params = signature(self.function).parameters
-            arg_count = len(params)
-            (new_state, new_vars) = state.vars(arg_count)
-            for (var, name) in zip(new_vars, params):
-                var.name = name
-            self.goal = self.function(*new_vars)
-            for result in self.goal.run(new_state):
-                reified_state = {}
-                for var in new_vars:
-                    reified_state[var] = result.reify(var)
-                yield reified_state
+        params = signature(self.function).parameters
+        arg_count = len(params)
+        new_vars = vars(arg_count)
+        for (var, name) in zip(new_vars, params):
+            var.name = name
+        self.goal = self.function(*new_vars)
+        for result in self.goal.run(state):
+            reified_state = {}
+            for var in new_vars:
+                reified_state[var] = result.reify(var)
+            yield reified_state
 
 
 class Disj(Connective):
@@ -222,13 +183,6 @@ class Disj(Connective):
         super().__init__()
         assert len(goals) > 0, "A disjunction must contain at least one goal."
         self.goals = goals
-
-#    def __prerun__(self, state):
-#        for goal in self.goals:
-#            new_state = goal.prerun(state)
-#            if new_state.valid:
-#                return state
-#        return state.update(valid=False)
 
     def __run__(self, state):
         stateStreams = [goal.run(state) for goal in self.goals]
@@ -250,14 +204,6 @@ class Conj(Connective):
         super().__init__()
         assert len(goals) > 0, "A conjunction must contain at least one goal."
         self.goals = goals
-
-    def __prerun__(self, state):
-        new_state = state
-        for goal in self.goals:
-            new_state = goal.prerun(new_state)
-            if not new_state.valid:
-                return new_state
-        return new_state
 
     def __run__(self, state):
         if(len(self.goals) == 1):
