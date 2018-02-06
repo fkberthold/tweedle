@@ -4,24 +4,19 @@ from microkanren.list import *
 import unification
 
 def inordero(left, right, lst):
-    with Disj() as ordero:
-        with WithFresh(1) as rest:
-            conso(left, rest, lst)
-            Firsto(rest, right)
-        with WithFresh(2) as first, rest:
-            conso(first, rest, lst)
-            inordero(left, right, rest)
-    return ordero
+    inFirst = Fresh(lambda rest: conso(left, rest, lst) & firsto(rest, right))
+    inRest = Fresh(lambda first, rest: conso(first, rest, lst) & inordero(left, right, rest))
+    return inFirst | inRest
 
 def isnexto(x, y, lst):
-    return Disj(inordero(x, y, lst), inordero(y, x, lst))
+    return inordero(x, y, lst) | inordero(y, x, lst)
 
 def indexoIs(index, val, lst):
     if index <= 0:
-        return Conj(Firsto(lst, val))
+        return Conj(firsto(lst, val))
     else:
         return Fresh(lambda rest:
-                          Conj(Resto(lst, rest),
+                          Conj(resto(lst, rest),
                                indexoIs(index - 1, val, rest)))
 
 
@@ -119,6 +114,7 @@ def rule5(street):
                       inordero(left, right, street),\
                       indexoIs(colori, green, left),\
                       indexoIs(colori, white, right)))
+
 def rule6(street):
     """6. They drink coffee in the green house."""
     return aHouse(street, drink=coffee, color=green)
@@ -140,7 +136,7 @@ def rule9(street):
 def rule10(street):
     """10. The Norwegian lives in the first house."""
     return Fresh(lambda house: Conj(\
-                      Firsto(street, house),
+                      firsto(street, house),
                       indexoIs(nati, norwegian, house)))
 
 def rule11(street):
@@ -186,7 +182,9 @@ rules = Call(lambda st:\
                         rule16(st),
                         rule0(st)))
 
+#ruleTest = Call(lambda st: rule1(st) & rule15(st))
+tst = Call(lambda a: inordero(1, 2, a) & Eq(a, [LVar(), LVar(), LVar()]))
 
-startState = rules.prerun(State())
-print(startState)
-print(rules.run(startState).__next__())
+for (c, s) in zip(range(10), tst.run()):
+    print(s)
+#print(ruleTest.run(State()).__next__())

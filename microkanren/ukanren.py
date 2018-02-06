@@ -6,6 +6,8 @@ import traceback
 import sys
 from inspect import signature
 
+MAX_SCORE = 100
+
 class LVar(object):
     nextId = 0
 
@@ -29,6 +31,8 @@ class LVar(object):
 def varq(value):
     return isinstance(value, LVar)
 
+def lvars(count):
+    return [LVar() for n in range(0, count)]
 
 class State(object):
     """A goal is ..."""
@@ -59,9 +63,6 @@ class State(object):
             substitution = copy.copy(self.substitution) if substitution is None else substitution
             valid = self.valid if valid is None else valid
             return State(substitution, valid)
-
-    def addVariables(self, count=1):
-        return self
 
     def ext_s(self, additionalSubstitutions):
         """Add a value v to variable x for the substitution"""
@@ -94,19 +95,6 @@ class State(object):
         else:
             return self.update(valid=False)
 
-    def var(self, identifier=None, name=None):
-        if identifier is None:
-            nextState = self.addVariables(1)
-        else:
-            nextState = State(self.substitution, [], self.valid)
-        newVar = LVar(name)
-        return (nextState, newVar)
-
-    def vars(self, count):
-        nextState = self.addVariables(count)
-        newVars = [LVar() for identifier in range(count)]
-        return (nextState, newVars)
-
 
 mzero = iter([])
 
@@ -118,23 +106,12 @@ class Goal(abc.ABC):
 
     def __init__(self):
         self.lastState = None
-        self.hasPrerun = False
-        layer = Connective.currentLayer()
-        if(layer):
-            layer.goals.append(self)
 
     def __and__(self, other):
         return Conj(self, other)
 
     def __or__(self, other):
         return Disj(self, other)
-
-    def prerun(self, state):
-        self.hasPrerun = True
-        return self.__prerun__(state)
-
-    def __prerun__(self, state):
-        return state
 
     @abc.abstractmethod
     def __run__(self, state):
@@ -160,28 +137,15 @@ class Goal(abc.ABC):
                 except StopIteration:
                     return
 
+    def score(self, state, accumulator=0):
+        return MAX_SCORE
+
 
 class Relation(Goal, abc.ABC):
     pass
 
 class Connective(Goal, abc.ABC):
-    _layers = []
     _goals = []
-
-    @classmethod
-    def register(cls, connective):
-        cls._layers.append(connective)
-
-    @classmethod
-    def currentLayer(cls):
-        if cls._layers:
-            return cls._layers[-1]
-        else:
-            return None
-
-    @classmethod
-    def unregister(cls):
-        return cls._layers.pop()
 
     @property
     def goals(self):
@@ -190,13 +154,6 @@ class Connective(Goal, abc.ABC):
     @goals.setter
     def goals(self, goals):
         self._goals = goals
-
-    def __enter__(self):
-        Connective.register(self)
-        return self
-
-    def __exit__(self, *args):
-        Connective.unregister()
 
 class Eq(Relation):
     def __init__(self, left, right):
@@ -207,101 +164,54 @@ class Eq(Relation):
     def __repr__(self):
         return "Eq(%s,%s)" % (self.left, self.right)
 
-    def __prerun__(self, state):
-        return state.unify(self.left, self.right)
-
     def __run__(self, state):
         yield state.unify(self.left, self.right)
+
+    def score(self, state, accumulator=0):
+        return 1
 
 class Fresh(Goal):
     def __init__(self, function):
         super().__init__()
         self.function = function
+        self.function_vars = None
+        self.goal = None
 
-    def __prerun__(self, state):
-        params = signature(self.function).parameters
-        arg_count = len(params)
-        (new_state, self.new_vars) = state.vars(arg_count)
-        for (var, name) in zip(self.new_vars, params):
-            var.name = name
-        self.goal = self.function(*self.new_vars)
-        return self.goal.prerun(new_state)
-
-    def __run__(self, state):
-        if self.hasPrerun:
-            yield from self.goal.run(state)
+    def getFunctionGoal(self):
+        if self.goal:
+            return self.goal
         else:
             params = signature(self.function).parameters
             arg_count = len(params)
-            (new_state, new_vars) = state.vars(arg_count)
-            for (var, name) in zip(new_vars, params):
+            self.function_vars = lvars(arg_count)
+            for (var, name) in zip(self.function_vars, params):
                 var.name = name
-            self.goal = self.function(*new_vars)
-            yield from self.goal.run(new_state)
+            self.goal = self.function(*self.function_vars)
+            return self.goal
 
-class WithFresh(Connective):
-    def __init__(self, howMany):
-        super().__init__()
-        self.howMany = howMany
-        self.args = [LVar() for count in range(self.howMany)]
-
-    def __enter__(self):
-        super().__enter__()
-        return self
-
-    def __iter__(self):
-        for val in self.args:
-            yield val
-
-    def __repr__(self):
-        if self.goals:
-            return ("Fresh (%i): " % self.howMany) + " & ".join([str(goal) for goal in self.goals])
+    def score(self, state, accumulator=0):
+        if accumulator >= MAX_SCORE:
+            return MAX_SCORE
         else:
-            return "Fresh"
-
-    def __prerun__(self, state):
-        self.conj = Conj(*self.goals)
-        return self.conj.prerun(state)
+            return 1 + self.getFunctionGoal().score(state, accumulator + 1)
 
     def __run__(self, state):
-        if self.hasPrerun:
-            yield from self.conj.run(state)
-        else:
-            yield from Conj(*self.goals).run(state)
+        goal = self.getFunctionGoal()
+        yield from goal.run(state)
 
 class Call(Fresh):
     def __run__(self, state):
-        if self.hasPrerun:
-            for result in self.goal.run(state):
-                reified_sub = {}
-                for var in self.new_vars:
-                    reified_sub[var] = result.reify(var)
-                yield state.update(substitution=reified_sub)
-        else:
-            params = signature(self.function).parameters
-            arg_count = len(params)
-            (new_state, new_vars) = state.vars(arg_count)
-            for (var, name) in zip(new_vars, params):
-                var.name = name
-            self.goal = self.function(*new_vars)
-            for result in self.goal.run(new_state):
-                reified_state = {}
-                for var in new_vars:
-                    reified_state[var] = result.reify(var)
-                yield reified_state
-
+        goal = self.getFunctionGoal()
+        for result in goal.run(state):
+            reified_state = {}
+            for var in self.function_vars:
+                reified_state[var] = result.reify(var)
+            yield state.update(reified_state)
 
 class Disj(Connective):
     def __init__(self, *goals):
         super().__init__()
         self.goals = list(goals)
-
-#    def __prerun__(self, state):
-#        for goal in self.goals:
-#            new_state = goal.prerun(state)
-#            if new_state.valid:
-#                return state
-#        return state.update(valid=False)
 
     def __repr__(self):
         if self.goals:
@@ -309,8 +219,19 @@ class Disj(Connective):
         else:
             return "DISJ"
 
+    def score(self, state, accumulator=0):
+        if accumulator >= MAX_SCORE:
+            return MAX_SCORE
+        else:
+            if self.goals:
+                goalScores = [goal.score(state, accumulator + 1) for goal in self.goals]
+                return max(goalScores) + 1
+            else:
+                return 1
+
     def __run__(self, state):
-        stateStreams = [goal.run(state) for goal in self.goals]
+        goals = sorted(self.goals, key=lambda goal: goal.score(state))
+        stateStreams = [goal.run(state) for goal in goals]
         newStreams = []
         while stateStreams:
             for stateStream in stateStreams:
@@ -323,7 +244,6 @@ class Disj(Connective):
             stateStreams=newStreams
             newStreams=[]
 
-
 class Conj(Connective):
     def __init__(self, *goals):
         super().__init__()
@@ -335,13 +255,15 @@ class Conj(Connective):
         else:
             return "CONJ"
 
-    def __prerun__(self, state):
-        new_state = state
-        for goal in self.goals:
-            new_state = goal.prerun(new_state)
-            if not new_state.valid:
-                return new_state
-        return new_state
+    def score(self, state, accumulator=0):
+        if accumulator >= MAX_SCORE:
+            return MAX_SCORE
+        else:
+            if self.goals:
+                goalScores = [goal.score(state, accumulator + 1) for goal in self.goals]
+                return sum(goalScores) + 1
+            else:
+                return 1
 
     def __run__(self, state):
         if(len(self.goals) == 1):
@@ -349,10 +271,11 @@ class Conj(Connective):
             return
 
         anyStreams = True
-        goalStreams = [[self.goals[0].run(state)]] + [[] for i in range(0, len(self.goals))]
+        goals = sorted(self.goals, key=lambda goal: goal.score(state))
+        goalStreams = [[goals[0].run(state)]] + [[] for i in range(0, len(goals))]
         while anyStreams:
             anyStreams = False
-            for goalStreamIndex in range(0, len(self.goals)):
+            for goalStreamIndex in range(0, len(goals)):
                 newStreams = []
                 stateStreams = goalStreams[goalStreamIndex]
 
@@ -360,14 +283,13 @@ class Conj(Connective):
                     try:
                         nextState = stateStream.__next__()
                         newStreams.append(stateStream)
-                        if (goalStreamIndex + 1) == len(self.goals):
+                        if (goalStreamIndex + 1) == len(goals):
                             yield nextState
                         else:
-                            newStream = self.goals[goalStreamIndex + 1].run(nextState)
+                            newStream = goals[goalStreamIndex + 1].run(nextState)
                             goalStreams[goalStreamIndex + 1].append(newStream)
                     except StopIteration:
                         pass
                 if anyStreams or newStreams:
                     anyStreams = True
                 goalStreams[goalStreamIndex] = newStreams
-

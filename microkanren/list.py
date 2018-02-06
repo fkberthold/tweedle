@@ -13,9 +13,11 @@ class ConstructList(Relation):
         self.minLength = minLength
         self.maxLength = maxLength
 
-    def run(self, state):
+    def score(self, state, accumulator=0):
+        return 100
+
+    def __run__(self, state):
         s = state.substitution
-        c = state.count
         varList = self.knownVarList
         lstVal = state.reify(self.lst)
         if isinstance(lstVal, list):
@@ -28,32 +30,23 @@ class ConstructList(Relation):
         elif self.maxLength is not None and len(self.knownVarList) > self.maxLength:
             return
         else:
-            (newState, varList) = state.vars(max(0, self.minLength - len(self.knownVarList)))
+            varList = varList + lvars(max(0, self.minLength - len(self.knownVarList)))
             while(True):
-                yield from Eq(self.lst, varList).run(newState)
-                (newState, newVar) = newState.var()
+                yield from Eq(self.lst, varList).run(state)
+                newVar = LVar()
                 varList = varList + [newVar]
 
-class Firsto(Relation):
+class firsto(Relation):
     def __init__(self, lst, first):
         super().__init__()
         self.lst = lst
         self.first = first
 
-    def __prerun__(self, state):
-        lst = state.reify(self.lst)
-        first = state.reify(self.first)
-        if not(isinstance(lst,list) or varq(lst)):
-            return state.update(valid=False)
-        elif isinstance(lst, list):
-            if(len(lst) == 0):
-                return state.update(valid=False)
-            else:
-                return Eq(lst[0], first).prerun(state)
-        elif varq(lst):
-            return state
+    def score(self, state, accumulator=0):
+        if varq(self.lst):
+            return MAX_SCORE
         else:
-            return state.update(valid=False)
+            return 1
 
     def __run__(self, state):
         lst = state.reify(self.lst)
@@ -70,34 +63,26 @@ class Firsto(Relation):
         else:
             yield from mzero
 
-class Resto(Relation):
+class resto(Relation):
     def __init__(self, lst, rest):
         super().__init__()
         self.lst = lst
         self.rest = rest
 
+    def score(self, state, accumulator=0):
+        if varq(self.lst) and varq(self.rest):
+            return MAX_SCORE
+        else:
+            return 1
+
     def restPairGen(self, state):
         yield from (Eq(self.lst, []) & Eq(self.rest, [])).run(state)
-        (newState, first) = state.var()
+        first = LVar()
         fullList = [first]
         while True:
-            yield from (Eq(self.lst, fullList) & Eq(self.rest, fullList[1:])).run(newState)
-            (newState, newVar) = newState.var()
+            yield from (Eq(self.lst, fullList) & Eq(self.rest, fullList[1:])).run(state)
+            newVar = LVar()
             fullList = fullList + [newVar]
-
-    def __prerun__(self, state):
-        lst = state.reify(self.lst)
-        rest = state.reify(self.rest)
-        if not(isinstance(lst, list) or varq(lst)):
-            return state.update(valid=False)
-        elif not(isinstance(rest, list) or varq(rest)):
-            return state.update(valid=False)
-        elif isinstance(lst, list):
-            return Eq(lst[1:], self.rest).prerun(state)
-        elif isinstance(rest, list):
-            return Fresh(lambda lstFirst: Eq(self.lst, [lstFirst] + rest_val)).prerun(state)
-        else:
-            return state
 
     def __run__(self, state):
         lst_val = state.reify(self.lst)
@@ -114,12 +99,12 @@ class Resto(Relation):
             yield from self.restPairGen(state)
 
 def conso(elem, lst, elemAndLst):
-    return Resto(elemAndLst, lst) & Firsto(elemAndLst, elem)
+    return resto(elemAndLst, lst) & firsto(elemAndLst, elem)
 
 def membero(elem, lst):
-    isFirst  = Firsto(lst, elem)
+    isFirst  = firsto(lst, elem)
     isInRest = Fresh(lambda first, rest:\
-                                 Resto(lst, rest) & Firsto(lst, first) & membero(elem, rest))
+                                 resto(lst, rest) & firsto(lst, first) & membero(elem, rest))
     return isFirst | isInRest
 
 def appendo(list1, list2, listCombined):
