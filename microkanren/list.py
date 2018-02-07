@@ -43,10 +43,13 @@ class firsto(Relation):
         self.first = first
 
     def score(self, state, accumulator=0):
-        if varq(self.lst):
+        if varq(state.reify(self.lst)):
             return MAX_SCORE
         else:
             return 1
+
+    def __repr__(self):
+        return "first(%s, %s)" % (str(self.lst), str(self.first))
 
     def __run__(self, state):
         lst = state.reify(self.lst)
@@ -69,11 +72,18 @@ class resto(Relation):
         self.lst = lst
         self.rest = rest
 
+    def __repr__(self):
+        return "rest(%s, %s)" % (str(self.lst), str(self.rest))
+
     def score(self, state, accumulator=0):
-        if varq(self.lst) and varq(self.rest):
-            return MAX_SCORE
+        lst = state.reify(self.lst)
+        rest = state.reify(self.rest)
+        if not varq(lst):
+            return len(lst)
+        elif not varq(rest):
+            return len(rest)
         else:
-            return 1
+            return MAX_SCORE
 
     def restPairGen(self, state):
         yield from (Eq(self.lst, []) & Eq(self.rest, [])).run(state)

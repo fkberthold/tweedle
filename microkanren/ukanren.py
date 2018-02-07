@@ -69,11 +69,14 @@ class State(object):
         return self.update(substitution={**additionalSubstitutions, **self.substitution})
 
     def reify(self, term):
-        while varq(term) and term in self.substitution:
-            term = self.substitution[term]
-        if isinstance(term, list):
-            term = [self.reify(val) for val in term]
-        return term
+        newTerm = term
+        while varq(newTerm) and newTerm in self.substitution:
+            newTerm = self.substitution[newTerm]
+        if isinstance(newTerm, list):
+            newTerm = [self.reify(val) for val in newTerm]
+            return newTerm
+        else:
+            return newTerm
 
     def unify(self, left, right):
         left = self.reify(left)
@@ -177,6 +180,10 @@ class Fresh(Goal):
         self.function_vars = None
         self.goal = None
 
+    def __repr__(self):
+        goal = self.getFunctionGoal()
+        return "Fresh %s: %s" % (str(self.function_vars), str(type(self.goal)))
+
     def getFunctionGoal(self):
         if self.goal:
             return self.goal
@@ -215,7 +222,7 @@ class Disj(Connective):
 
     def __repr__(self):
         if self.goals:
-            return " | ".join([str(goal) for goal in self.goals])
+            return " | ".join([("(%s)" % str(goal)) if isinstance(goal, Connective) else str(goal) for goal in self.goals])
         else:
             return "DISJ"
 
@@ -230,7 +237,8 @@ class Disj(Connective):
                 return 1
 
     def __run__(self, state):
-        goals = sorted(self.goals, key=lambda goal: goal.score(state))
+#        goals = sorted(self.goals, key=lambda goal: goal.score(state))
+        goals = self.goals
         stateStreams = [goal.run(state) for goal in goals]
         newStreams = []
         while stateStreams:
@@ -251,7 +259,7 @@ class Conj(Connective):
 
     def __repr__(self):
         if self.goals:
-            return " & ".join([str(goal) for goal in self.goals])
+            return " & ".join([("(%s)" % str(goal)) if isinstance(goal, Connective) else str(goal) for goal in self.goals])
         else:
             return "CONJ"
 
@@ -271,7 +279,8 @@ class Conj(Connective):
             return
 
         anyStreams = True
-        goals = sorted(self.goals, key=lambda goal: goal.score(state))
+#        goals = sorted(self.goals, key=lambda goal: goal.score(state))
+        goals = self.goals
         goalStreams = [[goals[0].run(state)]] + [[] for i in range(0, len(goals))]
         while anyStreams:
             anyStreams = False

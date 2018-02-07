@@ -4,8 +4,8 @@ from microkanren.list import *
 import unification
 
 def inordero(left, right, lst):
-    inFirst = Fresh(lambda rest: conso(left, rest, lst) & firsto(rest, right))
-    inRest = Fresh(lambda first, rest: conso(first, rest, lst) & inordero(left, right, rest))
+    inFirst = Fresh(lambda rest: firsto(lst, left) & resto(lst, rest) & firsto(rest, right))
+    inRest = Fresh(lambda first, rest: firsto(lst, first) & resto(lst, rest) & inordero(left, right, rest))
     return inFirst | inRest
 
 def isnexto(x, y, lst):
@@ -18,7 +18,6 @@ def indexoIs(index, val, lst):
         return Fresh(lambda rest:
                           Conj(resto(lst, rest),
                                indexoIs(index - 1, val, rest)))
-
 
 """
 The Zebra puzzle, a.k.a. Einstein's Riddle, is a logic puzzle which is to be solved programmatically. 
@@ -182,9 +181,30 @@ rules = Call(lambda st:\
                         rule16(st),
                         rule0(st)))
 
-#ruleTest = Call(lambda st: rule1(st) & rule15(st))
-tst = Call(lambda a: inordero(1, 2, a) & Eq(a, [LVar(), LVar(), LVar()]))
+ruleTest = Call(lambda st:\
+                   Conj(rule1(st),
+                        rule2(st),
+                        rule3(st),
+                        rule4(st),
+                        rule5(st),
+                        rule6(st),
+                        rule7(st),
+                        rule8(st),
+                        rule9(st),
+                        rule10(st),
+                        rule11(st),
+                        rule12(st),
+                        rule13(st),
+                        rule14(st),
+                        rule15(st),
+                        rule16(st),
+                        rule0(st)))
 
-for (c, s) in zip(range(10), tst.run()):
+#ruleTest = Call(lambda st: rule1(st) & rule5(st))
+#tst = Call(lambda a: inordero(1, 2, a) & Eq(a, [LVar(), LVar(), LVar(), LVar()]))
+#tst = Call(lambda a, b: firsto(a, 1) & firsto(b, a))
+
+for (c, s) in zip(range(1000000), ruleTest.run()):
+    print(c)
     print(s)
 #print(ruleTest.run(State()).__next__())
