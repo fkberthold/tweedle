@@ -6,48 +6,71 @@ from ast import *
 
 macros = Macros()
 
-@macros.expr
-def expand(tree, **kw):
-    print("===I'm an expression===")
-    print(tree)
-    print(real_repr(tree))
-    print(unparse(tree))
+@macros.decorator
+def goal(tree, expand_macros, **kw):
+    tree = expand_macros(tree)
+    calls = []
+    for stmt in tree.body:
+        if isinstance(stmt, Expr):
+            calls.append(stmt.value)
+        elif isinstance(stmt, list):
+            calls.append(stmt[0].value)
+    conjGoal = q[Conj()]
+    conjGoal.args = calls
+    tree.body = [Return(conjGoal)]
     return tree
-
 
 @macros.block
-def conj(tree, **kw):
-    print("===I'm a block===")
+def conj(tree, args, **kw):
+    target = kw.get('target')
+    expand_macros = kw['expand_macros']
+    tree = expand_macros(tree)
+    calls = []
+    for stmt in tree:
+        if isinstance(stmt, Expr):
+            calls.append(stmt.value)
+        elif isinstance(stmt, list):
+            calls.append(stmt[0].value)
+    conjGoal = q[Conj()]
+    conjGoal.args = calls
+    if target:
+        return [Assign([target], conjGoal)]
+    else:
+        return [Expr(conjGoal)]
+
+@macros.block
+def disj(tree, **kw):
+    target = kw.get('target')
+    expand_macros = kw['expand_macros']
+    tree = expand_macros(tree)
+    calls = []
+    for stmt in tree:
+        if isinstance(stmt, Expr):
+            calls.append(stmt.value)
+        elif isinstance(stmt, list):
+            calls.append(stmt[0].value)
+    disjGoal = q[Disj()]
+    disjGoal.args = calls
+    if target:
+        return [Assign([target], disjGoal)]
+    else:
+        return [Expr(disjGoal)]
+
+@macros.block
+def fresh(tree, target, expand_macros, **kw):
+    print("===fresh===")
     print(real_repr(tree))
-    return tree
-
-@macros.decorator
-def goal(tree, **kw):
-    print("===I'm a decorator===")
-    print(tree.name)
-    print("Args: " + real_repr(tree.args))
-    print("Body: " + real_repr(tree.body))
-    print("Tree: " + real_repr(tree))
-    body = tree.body
-#    tree.body = []
-    bodyGoal = Return(q[Conj(*(ast[tree.body]))])
-    print(real_repr(bodyGoal))
-    return tree
-
-
-def nothing():
-    print("***ARGS***")
-    args = [arg(a.arg, None) for a in tree.args.args]
-    print("ARGS: " + real_repr(args))
-#    print("\n\n\nEmpty Lambda: " + real_repr(fun))
-#    print("\n\n\nConj: " + real_repr(q[lambda x, y: Conj(x, y)]))
-#    fun = q[lambda: Conj(*u[tree.body])]
-#    print("fun: " + real_repr(fun))
-#    print(real_repr(q[Fresh(lambda: Conj(*tree.body))]))
-    fr = q[Fresh(u[fun])]
-    print("Fresh: " + real_repr(fr))
-    print(fr)
-    return fr
-#    print(real_repr(tree))
-#    return q[Fresh(lambda *(tree.args): Conj(*tree.body))]
-
+    print(real_repr(target))
+    tree = expand_macros(tree)
+    calls = []
+    for stmt in tree:
+        if isinstance(stmt, Expr):
+            calls.append(stmt.value)
+        elif isinstance(stmt, list):
+            calls.append(stmt[0].value)
+    conjGoal = q[Conj()]
+    conjGoal.args = calls
+    if target:
+        return [Assign([target], conjGoal)]
+    else:
+        return [Expr(conjGoal)]

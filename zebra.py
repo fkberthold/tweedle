@@ -1,6 +1,7 @@
 import sys
 from microkanren.ukanren import *
 from microkanren.list import *
+from microkanren.macro import macros, conj, disj, goal
 import unification
 
 def inordero(left, right, lst):
