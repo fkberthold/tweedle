@@ -1,4 +1,4 @@
-from microkanren.macro import macros, conj, disj, goal, fresh
+from microkanren.macro import macros, conj, disj, goal
 from microkanren.ukanren import *
 from microkanren.list import *
 
@@ -17,11 +17,11 @@ def numb(n1, n2):
             Eq(n1, 5)
             Eq(n2, 8)
 
-with conj(a,b,c) as higher:
-    Eq(1,1)
-    Eq(2,2)
+with conj(a,b), conj as numCase:
+    Eq(a, 3)
+    numb(a, b)
 
-for st in Fresh(lambda x, y: numb(x, y)).run():
+for st in numCase.run():
     print("== State ==")
     print(st)
 
