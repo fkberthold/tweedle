@@ -82,21 +82,29 @@ class State(object):
         left = self.reify(left)
         right = self.reify(right)
         if varq(left) and varq(right) and left.id == right.id:
-            return self.update()
+            yield self.update()
         elif varq(left):
-            return self.ext_s({left: right})
+            yield self.ext_s({left: right})
         elif varq(right):
-            return self.ext_s({right: left})
-        elif isinstance(left, list) and isinstance(right, list) and len(left) == len(right) and len(left) > 0:
-            headSub = self.unify(left[0], right[0])
-            if headSub.valid:
-                return headSub.unify(left[1:], right[1:])
-            else:
-                return self.update(valid=False)
+            yield self.ext_s({right: left})
+        elif isinstance(left, (list, tuple)) and isinstance(right, (list, tuple)) and len(left) == len(right) and len(left) > 0:
+            newState = self
+            for (leftElem, rightElem) in zip(left, right):
+                newState = newState.unify(leftElem, rightElem).__next__()
+                if not newState.valid:
+                    yield self.update(valid=False)
+            yield newState
+        elif isinstance(left, dict) and isinstance(right, dict) and len(left) == len(right) and len(left) > 0:
+            newState = self
+            for (leftElem, rightElem) in zip(left, right):
+                newState = newState.unify(leftElem, rightElem).__next__()
+                if not newState.valid:
+                    yield self.update(valid=False)
+            yield newState
         elif left == right:
-            return self.update()
+            yield self.update()
         else:
-            return self.update(valid=False)
+            yield self.update(valid=False)
 
 
 mzero = iter([])
@@ -168,7 +176,7 @@ class Eq(Relation):
         return "Eq(%s,%s)" % (self.left, self.right)
 
     def __run__(self, state):
-        yield state.unify(self.left, self.right)
+        yield from state.unify(self.left, self.right)
 
     def score(self, state, accumulator=0):
         return 1
