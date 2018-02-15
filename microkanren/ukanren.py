@@ -87,6 +87,22 @@ class State(object):
             yield self.ext_s({left: right})
         elif varq(right):
             yield self.ext_s({right: left})
+        elif isinstance(left, str) and left == right:
+            yield self.update()
+        else:
+            try: # Dictionary Case
+                pass
+            except:
+                pass
+            try: # Iterator Case
+                pass
+            except:
+                pass
+            if left == right:
+                yield self.update()
+            else:
+                yield self.update(valid=False)
+
         elif isinstance(left, (list, tuple)) and isinstance(right, (list, tuple)) and len(left) == len(right) and len(left) > 0:
             newState = self
             for (leftElem, rightElem) in zip(left, right):
@@ -95,16 +111,11 @@ class State(object):
                     yield self.update(valid=False)
             yield newState
         elif isinstance(left, dict) and isinstance(right, dict) and len(left) == len(right) and len(left) > 0:
-            newState = self
-            for (leftElem, rightElem) in zip(left, right):
-                newState = newState.unify(leftElem, rightElem).__next__()
-                if not newState.valid:
-                    yield self.update(valid=False)
-            yield newState
-        elif left == right:
-            yield self.update()
-        else:
-            yield self.update(valid=False)
+            headSub = self.unify(left[0], right[0])
+            if headSub.valid:
+                return headSub.unify(left[1:], right[1:])
+            else:
+                return self.update(valid=False)
 
 
 mzero = iter([])
