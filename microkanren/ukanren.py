@@ -8,45 +8,77 @@ import itertools
 from inspect import signature
 
 class LVar(object):
-    nextId = 0
+    """The objects instantiated by this class represent Logic Variables. Each should
+    be unique across any given assertion.
+    """
+    nextId = 0  # Ensures uniqueness
 
     def __init__(self, name=None):
+        """Each instance must have a unique id. `name` can be any string, they are used
+        to clarify intent only and can be duplicated harmlessly.
+
+        @param name: The name attached to the variable, `None` if it has no name.
+        """
         self.id = LVar.nextId
         LVar.nextId += 1
         self.name = name
 
-    def eq(self, other):
-        return Eq(self, other)
-
     def __repr__(self):
+        """Represent the LVar with its unique ID and name if it has one.
+        """
         if self.name:
             return "?%s(%i)" % (self.name, self.id)
         else:
             return "?%i" % self.id
 
     def __hash__(self):
+        """Since all LVars are unqiue by id, it's id should be sufficient as a hash.
+        """
         return self.id
 
 def varq(value):
+    """Test if `value` is a Logic Variable.
+    """
     return isinstance(value, LVar)
 
 def lvars(count):
+    """Create `count` Logic Variables.
+
+    @param count: The number of Logic Variables to return.
+    """
     return [LVar() for n in range(0, count)]
 
 class State(object):
-    """A goal is ..."""
+    """Expresses the value of any given logic variables in a goal.
+    """
     def __init__(self, substitution={}, valid=True):
+        """Instatiate a new state, which may or may not be valid. If a state
+        is not valid, then it's substitution value is irrelevant.
+
+        @param substitution: The values of each Logic Variable in the State.
+        @param valid: Whether the state is free of contradictions.  Generally even
+                      if the state is not valid, it may not show in the substitution.
+        """
         self.substitution = substitution
         self.valid = valid
 
     def __hash__(self):
-        return hash((tuple(self.substitution.keys()), tuple(self.substitution.values())))
+        """Unique hash for any given State is needed for some portions of unit testing.
+        """
+        return hash((self.valid, tuple(self.substitution.keys()), tuple(self.substitution.values())))
 
     def __eq__(self, other):
+        """Test equality with another state, needed for unit testing.
+
+        @param: Another state object.
+        @return: True if valid and substitution match.
+        """
         assert isinstance(other, State)
-        return self.substitution == other.substitution
+        return self.valid == other.valid and self.substitution == other.substitution
 
     def __repr__(self):
+        """States are represented as a list of their substitutions if valid.
+        """
         if self.valid:
             subs = ""
             for key in self.substitution:
@@ -151,8 +183,11 @@ class Eq(Relation):
             yield state.ext_s({left: right})
         elif varq(right):
             yield state.ext_s({right: left})
-        elif isinstance(left, str) and left == right:
-            yield state.update()
+        elif isinstance(left, str):
+            if left == right:
+                yield state.update()
+            else:
+                yield state.update(valid=False)
         elif hasattr(left, '__len__') and hasattr(right, '__len__') and len(left) > 0 and len(left) == len(right):
             try: # Dictionary Case
                 leftKeys = left.keys()
@@ -189,10 +224,10 @@ class Eq(Relation):
                 pass
 
             try: # Ordered Iterator Case
-                assert left.hasattr('__getitem__') and right.hasattr('__getitem__')
+                assert hasattr(left, '__getitem__') and hasattr(right, '__getitem__')
                 yield from Conj(*[Eq(leftVal, rightVal) for (leftVal, rightVal) in zip(left, right)]).run(state)
                 return
-            except AttributeError as err:
+            except Exception as err:
                 pass
 
             try: # Unordered Iterator Case
@@ -215,8 +250,9 @@ class Eq(Relation):
                 else:
                     yield state.update()
                 return
-            except AttributeError as err:
+            except Exception as err:
                 return
+
         elif left == right:
             yield state.update()
         else:
