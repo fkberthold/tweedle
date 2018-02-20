@@ -4,9 +4,8 @@ import collections
 import copy
 import traceback
 import sys
+import itertools
 from inspect import signature
-
-MAX_SCORE = 100
 
 class LVar(object):
     nextId = 0
@@ -78,46 +77,6 @@ class State(object):
         else:
             return newTerm
 
-    def unify(self, left, right):
-        left = self.reify(left)
-        right = self.reify(right)
-        if varq(left) and varq(right) and left.id == right.id:
-            yield self.update()
-        elif varq(left):
-            yield self.ext_s({left: right})
-        elif varq(right):
-            yield self.ext_s({right: left})
-        elif isinstance(left, str) and left == right:
-            yield self.update()
-        else:
-            try: # Dictionary Case
-                pass
-            except:
-                pass
-            try: # Iterator Case
-                pass
-            except:
-                pass
-            if left == right:
-                yield self.update()
-            else:
-                yield self.update(valid=False)
-
-        elif isinstance(left, (list, tuple)) and isinstance(right, (list, tuple)) and len(left) == len(right) and len(left) > 0:
-            newState = self
-            for (leftElem, rightElem) in zip(left, right):
-                newState = newState.unify(leftElem, rightElem).__next__()
-                if not newState.valid:
-                    yield self.update(valid=False)
-            yield newState
-        elif isinstance(left, dict) and isinstance(right, dict) and len(left) == len(right) and len(left) > 0:
-            headSub = self.unify(left[0], right[0])
-            if headSub.valid:
-                return headSub.unify(left[1:], right[1:])
-            else:
-                return self.update(valid=False)
-
-
 mzero = iter([])
 
 def unit(state):
@@ -159,9 +118,6 @@ class Goal(abc.ABC):
                 except StopIteration:
                     return
 
-    def score(self, state, accumulator=0):
-        return MAX_SCORE
-
 
 class Relation(Goal, abc.ABC):
     pass
@@ -187,10 +143,79 @@ class Eq(Relation):
         return "Eq(%s,%s)" % (self.left, self.right)
 
     def __run__(self, state):
-        yield from state.unify(self.left, self.right)
+        left = state.reify(self.left)
+        right = state.reify(self.right)
+        if varq(left) and varq(right) and left.id == right.id:
+            yield state.update()
+        elif varq(left):
+            yield state.ext_s({left: right})
+        elif varq(right):
+            yield state.ext_s({right: left})
+        elif isinstance(left, str) and left == right:
+            yield state.update()
+        elif hasattr(left, '__len__') and hasattr(right, '__len__') and len(left) == len(right):
+            try: # Dictionary Case
+                newStates = unit(self)
+                leftKeys = left.getkeys()
+                rightKeys  = right.getkeys()
+                justInLeft = leftKeys - rightKeys
+                justInRight = rightKeys - leftKeys
+                leftVars = {v for v in justInLeft if varq(v)}
+                rightVars = {v for v in justInRight if varq(v)}
+                leftLiterals = justInLeft - leftVars
+                rightLiterals = justInRight - rightVars
 
-    def score(self, state, accumulator=0):
-        return 1
+                if len(leftLiterals) > len(rightVars) or len(rightLiterals) > len(leftVars):
+                    # If there are more literals in one side that don't match than there are
+                    # variables on the other side, then the two sides can't match.
+                    return
+
+                leftVarsList = list(leftVars)
+                rightVarsList = list(rightVars)
+                leftLiteralsList = list(leftLiterals)
+                rightLiteralsList = list(rightLiterals)
+
+
+                inBoth = Conj(*[Eq(left[key], right[key]) for key in (leftKeys & rightKeys)])
+                newStates = inBoth.run(newStates)
+
+                varsSet = []
+                for combinationSet in setCombinations(leftVarsList, rightVarsList, leftLiteralsList, rightLiteralsList):
+                    varsSet.append(Conj(*[Conj(Eq(leftKey, rightKey), Eq(left[leftKey], right[rightKey])) for (leftKey, rightKey) in combinationSet]))
+
+                for state in newStates:
+                    yield from Disj(*varsSet).run(state)
+
+            except:
+                pass
+            try: # Ordered Iterator Case
+                assert left.hasattr('__getitem__') and right.hasattr('__getitem__')
+            except:
+                pass
+            try: # Unordered Iterator Case
+                pass
+            except:
+                pass
+        elif left == right:
+            yield self.update()
+        else:
+            yield self.update(valid=False)
+
+     def setCombinations(leftVars, rightVars, leftLits, rightLits):
+         rightVarsLst = list(rightVars)
+         rightLitsLst = list(rightLits)
+         leastLvarRlit = min(len(leftVars), len(rightLits))
+         leastRvarLlit = min(len(rightVars), len(leftLits))
+         combinations = []
+
+         for rightVarsPerm in itertools.permutations(rightVars):
+             for leftVarsPerm in itertools.permutations(leftVars):
+                 leftVarsToLits = list(zip(leftVarsPerm[0:leastLvarRlit], rightLitsLst[0:leastLvarRlit]))
+                 leftVarsToVars = list(zip(leftVarsPerm[leastLvarRlit:], rightVarsPerm[leastRvarLlit:]))
+                 for leftLitsPerm in itertools.permutations(leftLits):
+                     rightVarsToLits = list(zip(rightVarsPerm[0:leastRvarLlit], leftLitsPerm[0:leastRvarLlit]))
+                     combinations.append(leftVarsToLits + rightVarsToLits + leftVarsToVars)
+         return combinations
 
 class Fresh(Goal):
     def __init__(self, function):
@@ -214,12 +239,6 @@ class Fresh(Goal):
                 var.name = name
             self.goal = self.function(*self.function_vars)
             return self.goal
-
-    def score(self, state, accumulator=0):
-        if accumulator >= MAX_SCORE:
-            return MAX_SCORE
-        else:
-            return 1 + self.getFunctionGoal().score(state, accumulator + 1)
 
     def __run__(self, state):
         goal = self.getFunctionGoal()
@@ -245,18 +264,7 @@ class Disj(Connective):
         else:
             return "DISJ"
 
-    def score(self, state, accumulator=0):
-        if accumulator >= MAX_SCORE:
-            return MAX_SCORE
-        else:
-            if self.goals:
-                goalScores = [goal.score(state, accumulator + 1) for goal in self.goals]
-                return max(goalScores) + 1
-            else:
-                return 1
-
     def __run__(self, state):
-#        goals = sorted(self.goals, key=lambda goal: goal.score(state))
         goals = self.goals
         stateStreams = [goal.run(state) for goal in goals]
         newStreams = []
@@ -282,23 +290,12 @@ class Conj(Connective):
         else:
             return "CONJ"
 
-    def score(self, state, accumulator=0):
-        if accumulator >= MAX_SCORE:
-            return MAX_SCORE
-        else:
-            if self.goals:
-                goalScores = [goal.score(state, accumulator + 1) for goal in self.goals]
-                return sum(goalScores) + 1
-            else:
-                return 1
-
     def __run__(self, state):
         if(len(self.goals) == 1):
             yield from self.goals[0].run(state)
             return
 
         anyStreams = True
-#        goals = sorted(self.goals, key=lambda goal: goal.score(state))
         goals = self.goals
         goalStreams = [[goals[0].run(state)]] + [[] for i in range(0, len(goals))]
         while anyStreams:
