@@ -1,6 +1,6 @@
 import sys
 from microkanren.ukanren import *
-from microkanren.list import *
+from microkanren.collections import *
 from microkanren.macro import macros, conj, disj, goal, call
 import unification
 

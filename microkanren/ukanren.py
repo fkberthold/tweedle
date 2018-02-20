@@ -153,11 +153,10 @@ class Eq(Relation):
             yield state.ext_s({right: left})
         elif isinstance(left, str) and left == right:
             yield state.update()
-        elif hasattr(left, '__len__') and hasattr(right, '__len__') and len(left) == len(right):
+        elif hasattr(left, '__len__') and hasattr(right, '__len__') and len(left) > 0 and len(left) == len(right):
             try: # Dictionary Case
-                newStates = unit(self)
-                leftKeys = left.getkeys()
-                rightKeys  = right.getkeys()
+                leftKeys = left.keys()
+                rightKeys  = right.keys()
                 justInLeft = leftKeys - rightKeys
                 justInRight = rightKeys - leftKeys
                 leftVars = {v for v in justInLeft if varq(v)}
@@ -170,52 +169,74 @@ class Eq(Relation):
                     # variables on the other side, then the two sides can't match.
                     return
 
-                leftVarsList = list(leftVars)
-                rightVarsList = list(rightVars)
-                leftLiteralsList = list(leftLiterals)
-                rightLiteralsList = list(rightLiterals)
+                inBoth = leftKeys & rightKeys
+                if inBoth:
+                    baseGoal = Conj(*[Eq(left[key], right[key]) for key in inBoth])
+                else:
+                    baseGoal = None
 
-
-                inBoth = Conj(*[Eq(left[key], right[key]) for key in (leftKeys & rightKeys)])
-                newStates = inBoth.run(newStates)
-
-                varsSet = []
-                for combinationSet in setCombinations(leftVarsList, rightVarsList, leftLiteralsList, rightLiteralsList):
-                    varsSet.append(Conj(*[Conj(Eq(leftKey, rightKey), Eq(left[leftKey], right[rightKey])) for (leftKey, rightKey) in combinationSet]))
-
-                for state in newStates:
-                    yield from Disj(*varsSet).run(state)
-
-            except:
+                if leftVars or rightVars:
+                    for combinationSet in self.setCombinations(leftVars, rightVars, leftLiterals, rightLiterals):
+                        differenceGoal = Conj(*[Conj(Eq(leftKey, rightKey), Eq(left[leftKey], right[rightKey])) for (leftKey, rightKey) in combinationSet])
+                        if inBoth:
+                            yield from Conj(baseGoal, differenceGoal).run(state)
+                        else:
+                            yield from differenceGoal.run(state)
+                else:
+                    yield from baseGoal.run(state)
+                return
+            except AttributeError as err:
                 pass
+
             try: # Ordered Iterator Case
                 assert left.hasattr('__getitem__') and right.hasattr('__getitem__')
-            except:
+                yield from Conj(*[Eq(leftVal, rightVal) for (leftVal, rightVal) in zip(left, right)]).run(state)
+                return
+            except AttributeError as err:
                 pass
+
             try: # Unordered Iterator Case
-                pass
-            except:
-                pass
+                justInLeft = left - right
+                justInRight = right - left
+                leftVars = {v for v in justInLeft if varq(v)}
+                rightVars = {v for v in justInRight if varq(v)}
+                leftLiterals = justInLeft - leftVars
+                rightLiterals = justInRight - rightVars
+
+                if len(leftLiterals) > len(rightVars) or len(rightLiterals) > len(leftVars):
+                    # If there are more literals in one side that don't match than there are
+                    # variables on the other side, then the two sides can't match.
+                    return
+
+                if leftVars or rightVars:
+                    for combinationSet in self.setCombinations(leftVars, rightVars, leftLiterals, rightLiterals):
+                        differenceGoal = Conj(*[Eq(leftKey, rightKey) for (leftKey, rightKey) in combinationSet])
+                        yield from differenceGoal.run(state)
+                else:
+                    yield state.update()
+                return
+            except AttributeError as err:
+                return
         elif left == right:
-            yield self.update()
+            yield state.update()
         else:
-            yield self.update(valid=False)
+            yield state.update(valid=False)
 
-     def setCombinations(leftVars, rightVars, leftLits, rightLits):
-         rightVarsLst = list(rightVars)
-         rightLitsLst = list(rightLits)
-         leastLvarRlit = min(len(leftVars), len(rightLits))
-         leastRvarLlit = min(len(rightVars), len(leftLits))
-         combinations = []
+    def setCombinations(self, leftVars, rightVars, leftLits, rightLits):
+        rightVarsLst = list(rightVars)
+        rightLitsLst = list(rightLits)
+        leastLvarRlit = min(len(leftVars), len(rightLits))
+        leastRvarLlit = min(len(rightVars), len(leftLits))
+        combinations = []
 
-         for rightVarsPerm in itertools.permutations(rightVars):
-             for leftVarsPerm in itertools.permutations(leftVars):
-                 leftVarsToLits = list(zip(leftVarsPerm[0:leastLvarRlit], rightLitsLst[0:leastLvarRlit]))
-                 leftVarsToVars = list(zip(leftVarsPerm[leastLvarRlit:], rightVarsPerm[leastRvarLlit:]))
-                 for leftLitsPerm in itertools.permutations(leftLits):
-                     rightVarsToLits = list(zip(rightVarsPerm[0:leastRvarLlit], leftLitsPerm[0:leastRvarLlit]))
-                     combinations.append(leftVarsToLits + rightVarsToLits + leftVarsToVars)
-         return combinations
+        for rightVarsPerm in itertools.permutations(rightVars):
+            for leftVarsPerm in itertools.permutations(leftVars):
+                leftVarsToLits = list(zip(leftVarsPerm[0:leastLvarRlit], rightLitsLst[0:leastLvarRlit]))
+                leftVarsToVars = list(zip(leftVarsPerm[leastLvarRlit:], rightVarsPerm[leastRvarLlit:]))
+                for leftLitsPerm in itertools.permutations(leftLits):
+                    rightVarsToLits = list(zip(rightVarsPerm[0:leastRvarLlit], leftLitsPerm[0:leastRvarLlit]))
+                    combinations.append(leftVarsToLits + rightVarsToLits + leftVarsToVars)
+        return combinations
 
 class Fresh(Goal):
     def __init__(self, function):

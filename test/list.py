@@ -2,7 +2,7 @@ import os.path
 import sys
 import unittest
 from microkanren.urkanren import *
-from microkanren.list import *
+from microkanren.collections import *
 
 empty_state = State()
 
