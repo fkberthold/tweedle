@@ -63,9 +63,14 @@ class State(object):
         self.valid = valid
 
     def __hash__(self):
+<<<<<<< HEAD
         """Unique hash for any given State is needed for some portions of unit testing.
         """
         return hash((self.valid, tuple(self.substitution.keys()), tuple(self.substitution.values())))
+=======
+        """"""
+        return hash((tuple(self.substitution.keys()), tuple(self.substitution.values())))
+>>>>>>> collectionTypes
 
     def __eq__(self, other):
         """Test equality with another state, needed for unit testing.
