@@ -76,6 +76,11 @@ class State(object):
         assert isinstance(other, State)
         return self.valid == other.valid and self.substitution == other.substitution
 
+    def __len__(self):
+        """The size of a state is just the size of it's substitution table.
+        """
+        return len(self.substitution)
+
     def __repr__(self):
         """States are represented as a list of their substitutions if valid.
         """

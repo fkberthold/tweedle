@@ -1,90 +1,112 @@
 import os.path
 import sys
 import unittest
-from microkanren.urkanren import *
+from microkanren.ukanren import *
+from microkanren.macro import macros, conj, disj, goal, call
 
 empty_state = State()
 
-one_value = State({var(0):'hi'}, 1)
-two_values = State({var(0):'hi', var(1):'bye'}, 2)
-value_reference = State({var(0):var(1), var(1):'bye'}, 2)
-identical_values = State({var(0):'hi', var(1):'hi'}, 2)
+one_value = State({LVar(0):'hi'})
+two_values = State({LVar(0):'hi', LVar(1):'bye'})
+value_reference = State({LVar(0):LVar(1), LVar(1):'bye'})
+identical_values = State({LVar(0):'hi', LVar(1):'hi'})
 
-class Test_CoreMicroKanren(unittest.TestCase):
-    def test_base_var(self):
-        self.assertTrue(var(1).id == LogicVariable(1).id)
+class Test_LVar(unittest.TestCase):
+    def test_increment_id(self):
+        oldId = LVar.nextId
+        newVar = LVar()
+        newId = LVar.nextId
+        self.assertEqual(oldId, newVar.id)
+        self.assertEqual(oldId + 1, newId)
 
-    def test_base_varq(self):
-        self.assertTrue(varq(var(1)))
+    def test_var_without_name(self):
+        oldId = LVar.nextId
+        newVar = LVar()
+        self.assertIsNone(newVar.name)
+        self.assertEqual(newVar.id, oldId)
 
-    def test_neg_varq(self):
-        self.assertFalse(varq(1))
+    def test_var_with_name(self):
+        oldId = LVar.nextId
+        newVar = LVar("test_name")
+        self.assertEqual(newVar.name, "test_name")
+        self.assertEqual(newVar.id, oldId)
 
-    def test_base_vareq(self):
-        self.assertTrue(vareq(var(1), var(1)))
+    def test_vars_only_equal_if_id_equal(self):
+        newVar1 = LVar("test_name")
+        newVar2 = LVar("test_name")
+        self.assertNotEqual(newVar1, newVar2)
 
-    def test_base_vareq(self):
-        self.assertFalse(vareq(var(1), var(2)))
 
-    def test_base_case_walk(self):
-        self.assertEqual(walk(1, one_value.substitution), 1)
+class Test_State(unittest.TestCase):
+    def test_valid_empty(self):
+        newState = State()
+        self.assertEqual(newState.substitution, {})
+        self.assertTrue(newState.valid)
 
-    def test_variable_case_walk(self):
-        self.assertEqual(walk(var(0), two_values.substitution), 'hi')
+    def test_valid_with_sub(self):
+        var = LVar()
+        newState = State({var: 3})
+        self.assertEqual(newState.substitution, {var: 3})
+        self.assertTrue(newState.valid)
 
-    def test_reference_walk(self):
-        self.assertEqual(walk(var(0), value_reference.substitution), 'bye')
+    def test_invalid(self):
+        newState = State(valid=False)
+        self.assertFalse(newState.valid)
 
-    def test_base_ext_s(self):
-        self.assertCountEqual(ext_s(var(1), 'bye', one_value.substitution), two_values.substitution)
+class Test_Eq(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.var1 = LVar()
+        cls.var2 = LVar()
 
-    def test_literal_eq(self):
-        self.assertCountEqual(eq(1, 1)(one_value), [one_value])
+    def test_tautology(self):
+        result = list(Eq(3,3).run())
+        self.assertEqual(result, [State()])
 
-    def test_literal_not_eq(self):
-        self.assertCountEqual(eq(1, 2)(one_value), [])
+    def test_not_eq(self):
+        result = list(Eq(3,4).run())
+        self.assertEqual(result, [])
 
-    def test_literal_var_eq(self):
-        self.assertCountEqual(eq(var(0), 'hi')(one_value), [one_value])
+    def varOnLeft(self):
+        result = list(Eq(cls.var1, 3))
 
-    def test_list_eq(self):
-        self.assertCountEqual(call_fresh(lambda f:eq([1,2], [1,f]))(empty_state), [State({var(0):2}, 1)])
+class Test_Conj(unittest.TestCase):
+    def test_just_one_valid(self):
+        result = list(Conj(Eq(3,3)).run())
+        self.assertEqual(result, [State()])
 
-    def test_unify_base(self):
-        self.assertCountEqual(unify(var(0), var(1), identical_values.substitution), identical_values.substitution)
+    def test_just_one_invalid(self):
+        result = list(Conj(Eq(2,3)).run())
+        self.assertEqual(result, [])
 
-    def test_unify_not_base(self):
-        self.assertFalse(unify(var(0), var(1), two_values.substitution))
+class Test_Disj(unittest.TestCase):
+    def test_just_one_valid(self):
+        result = list(Disj(Eq(3,3)).run())
+        self.assertEqual(result, [State()])
 
-    def test_call_fresh_base(self):
-        self.assertCountEqual(((list(call_fresh(lambda g: eq(g, var(0)))(two_values)))[0].substitution), {**two_values.substitution, **{var(2): 'hi'}})
+    def test_just_one_invalid(self):
+        result = list(Disj(Eq(2,3)).run())
+        self.assertEqual(result, [])
 
-    def test_call_fresh_nest(self):
-        call = (lambda f: call_fresh(lambda g: eq(f, g)))
-        self.assertCountEqual(call_fresh(call)(empty_state), [State({var(0):var(1)},2)])
+class Test_Fresh(unittest.TestCase):
+    def test_empty_fresh(self):
+        result = list(Fresh(lambda: Eq(3,3)).run())
+        self.assertEqual(result, [State()])
 
-    def test_disj_base(self):
-        call = (lambda f: disj(eq(f, var(0)), eq(f, var(1))))
-        choice1 = State({**{var(2):'hi'}, **(two_values.substitution)}, 3)
-        choice2 = State({**{var(2):'bye'}, **(two_values.substitution)}, 3)
-        self.assertCountEqual(list(call_fresh(call)(two_values)), [choice1, choice2])
+    def test_one_fresh(self):
+        result = list(Fresh(lambda x: Eq(x,3)).run())
+        self.assertEqual(len(result), 1)
+        self.assertEqual(len(result[0].substitution), 1)
+        var = list(result[0].substitution.keys())[0]
+        self.assertEqual(var.name, 'x')
 
-    def test_disj_several(self):
-        call = (lambda f, g: disj(eq(f, var(0)), eq(f, var(1)), eq(g, var(0))))
-        choice1 = State({**{var(2):'hi'}, **(two_values.substitution)}, 4)
-        choice2 = State({**{var(2):'bye'}, **(two_values.substitution)}, 4)
-        choice3 = State({**{var(3):'hi'}, **(two_values.substitution)}, 4)
-        self.assertCountEqual(list(call_fresh(call)(two_values)), [choice1, choice2, choice3])
+class Test_Call(unittest.TestCase):
+    def test_empty_call(self):
+        result = list(Fresh(lambda: Eq(3,3)).run())
+        self.assertEqual(result, [State()])
 
-    def test_conj_base(self):
-        call = lambda f, g: conj(eq(f, g), eq(g, var(0)))
-        choice = State({**{var(3):'hi', var(2):var(3)}, **(two_values.substitution)}, 4)
-        self.assertCountEqual(list(call_fresh(call)(two_values)), [choice])
-
-    def test_conj_several(self):
-        call = lambda f, g, h: conj(eq(f, g), eq(g, var(0)), eq(h, var(1)))
-        choice = State({**{var(3):'hi', var(2):var(3), var(4):'bye'}, **(two_values.substitution)}, 5)
-        self.assertCountEqual(list(call_fresh(call)(two_values)), [choice])
 
 if __name__ == "__main__":
-    unittest.main()
+    print("This test suite depends on macros to execute, so can't be")
+    print("run independently. Please either run it through `run_tests.py`")
+    print("above, or by importing it in a separate file.")
