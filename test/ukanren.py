@@ -53,6 +53,29 @@ class Test_State(unittest.TestCase):
         newState = State(valid=False)
         self.assertFalse(newState.valid)
 
+class Test_Fail(unittest.TestCase):
+    def test_valid_state_fails(self):
+        newState = State()
+        result = list(Fail().run(newState))
+        self.assertEqual(result, [])
+
+    def test_invalid_state_fails(self):
+        newState = State(valid=False)
+        result = list(Fail().run(newState))
+        self.assertEqual(result, [])
+
+class Test_Succeed(unittest.TestCase):
+    def test_valid_state_succeeds(self):
+        newState = State()
+        result = list(Succeed().run(newState))
+        self.assertEqual(result, [newState])
+
+    def test_invalid_state_fails(self):
+        newState = State(valid=False)
+        result = list(Succeed().run(newState))
+        self.assertEqual(result, [])
+
+
 class Test_Eq(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -67,8 +90,17 @@ class Test_Eq(unittest.TestCase):
         result = list(Eq(3,4).run())
         self.assertEqual(result, [])
 
-    def varOnLeft(self):
-        result = list(Eq(cls.var1, 3))
+    def test_var_on_left(self):
+        result = list(Eq(self.var1, 3).run())
+        self.assertEqual(result[0][self.var1], 3)
+
+    def test_var_on_right(self):
+        result = list(Eq(3, self.var1).run())
+        self.assertEqual(result[0][self.var1], 3)
+
+    def test_var_on_both(self):
+        result = list(Eq(self.var1, self.var2).run())
+        self.assertEqual(result[0][self.var1], self.var2)
 
 class Test_Conj(unittest.TestCase):
     def test_just_one_valid(self):

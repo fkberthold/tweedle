@@ -81,6 +81,16 @@ class State(object):
         """
         return len(self.substitution)
 
+    def __getitem__(self, key):
+        """Rather than directly getting the value of the key, get the fully reified value.
+        This has the (possibly strange?) effect of, if the key isn't present, then it just
+        returns the key value."""
+        return self.reify(key)
+
+    def __missing__(self, key):
+        """Get item from substitution."""
+        return self.substitution[key]
+
     def __repr__(self):
         """States are represented as a list of their substitutions if valid.
         """
@@ -333,6 +343,18 @@ class Eq(Relation):
                     rightVarsToLits = list(zip(rightVarsPerm[0:leastRvarLlit], leftLitsPerm[0:leastRvarLlit]))
                     combinations.append(leftVarsToLits + rightVarsToLits + leftVarsToVars)
         return combinations
+
+class Fail(Goal):
+    """Always sets the state to failing.
+    """
+    def __run__(self, state):
+        yield state.update(valid=False)
+
+class Succeed(Goal):
+    """Leaves the state at valid, a no-op.
+    """
+    def __run__(self, state):
+        yield state.update()
 
 class Fresh(Goal):
     """Fresh is used to bring new variables into an assertion.
