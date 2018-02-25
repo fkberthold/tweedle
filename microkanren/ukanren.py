@@ -27,9 +27,9 @@ class LVar(object):
         """Represent the LVar with its unique ID and name if it has one.
         """
         if self.name:
-            return "?%s(%i)" % (self.name, self.id)
+            return "%s(%i)" % (self.name, self.id)
         else:
-            return "?%i" % self.id
+            return "%i" % self.id
 
     def __hash__(self):
         """Since all LVars are unqiue by id, it's id should be sufficient as a hash.
