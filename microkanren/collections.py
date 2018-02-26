@@ -5,6 +5,29 @@ import itertools
 def emptyo(lst):
     return Eq(lst, [])
 
+class list_leno(Relation):
+    def __init__(self, lst, length):
+        super().__init__()
+        self.lst = lst
+        self.length = length
+
+    def __run__(self, state):
+        if varq(self.lst) and varq(self.length):
+            length = 0
+            newList = []
+            while True:
+                yield from Conj(Eq(self.length, length), Eq(self.lst, newList)).run(state)
+                newList = newList + [LVar()]
+                length += 1
+        elif varq(self.lst):
+            yield from Eq(self.lst, [LVar() for count in range(0,self.length)]).run(state)
+        elif varq(self.length):
+            yield from Eq(self.length, len(self.lst)).run(state)
+        elif len(self.lst) == self.length:
+            yield state
+        else:
+            yield state.update(valid=False)
+
 class ConstructList(Relation):
     def __init__(self, lst, knownVarList=[], minLength=0, maxLength=None):
         super().__init__()
