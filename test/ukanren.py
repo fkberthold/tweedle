@@ -30,14 +30,14 @@ class Test_LVar(unittest.TestCase):
         newVar = LVar()
         self.assertIsNone(newVar.name)
         self.assertEqual(newVar.id, oldId)
-        self.assertEqual(str(newVar), "%i" % newVar.id)
+        self.assertEqual(str(newVar), "+%i" % newVar.id)
 
     def test_var_with_name(self):
         oldId = LVar.nextId
         newVar = LVar("test_name")
         self.assertEqual(newVar.name, "test_name")
         self.assertEqual(newVar.id, oldId)
-        self.assertEqual(str(newVar), "%s(%i)" % (newVar.name, newVar.id))
+        self.assertEqual(str(newVar), "%s(+%i)" % (newVar.name, newVar.id))
 
     def test_vars_only_equal_if_id_equal(self):
         newVar1 = LVar("test_name")

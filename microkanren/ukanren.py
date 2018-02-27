@@ -27,9 +27,9 @@ class LVar(object):
         """Represent the LVar with its unique ID and name if it has one.
         """
         if self.name:
-            return "%s(%i)" % (self.name, self.id)
+            return "%s(+%i)" % (self.name, self.id)
         else:
-            return "%i" % self.id
+            return "+%i" % self.id
 
     def __hash__(self):
         """Since all LVars are unqiue by id, it's id should be sufficient as a hash.
@@ -51,7 +51,7 @@ def lvars(count):
 class State(object):
     """Expresses the value of any given logic variables in a goal.
     """
-    def __init__(self, substitution={}, valid=True):
+    def __init__(self, substitution=None, valid=True):
         """Instatiate a new state, which may or may not be valid. If a state
         is not valid, then it's substitution value is irrelevant.
 
@@ -59,7 +59,7 @@ class State(object):
         @param valid: Whether the state is free of contradictions.  Generally even
                       if the state is not valid, it may not show in the substitution.
         """
-        self.substitution = substitution
+        self.substitution = collections.ChainMap({}, substitution if substitution else {})
         self.valid = valid
 
     def __hash__(self):
@@ -106,13 +106,15 @@ class State(object):
         if valid == False:
             return State({}, valid=False)
         else:
-            substitution = copy.copy(self.substitution) if substitution is None else substitution
-            valid = self.valid if valid is None else valid
-            return State(substitution, valid)
+            if substitution:
+                return State(self.substitution.new_child(substitution), self.valid)
+            else:
+                return State(self.substitution.new_child(), self.valid)
 
     def ext_s(self, additionalSubstitutions):
         """Add a value v to variable x for the substitution"""
-        return self.update(substitution={**additionalSubstitutions, **self.substitution})
+        self.substitution.update(additionalSubstitutions)
+        return self
 
     def reify(self, term):
         """For a given term, search the state for that term.
@@ -172,7 +174,7 @@ class Goal(abc.ABC):
         @param results: The maximum number of results to wait for.
         """
         if results is None:
-            runner = self.__run__(state)
+            runner = self.__run__(state.update())
             while True:
                 try:
                     self.lastState = runner.__next__()
@@ -230,7 +232,7 @@ class Eq(Relation):
         right = state.reify(self.right)
         # Same variable means they're equal.
         if varq(left) and varq(right) and left.id == right.id:
-            yield state.update()
+            yield state
         # If just one is a variable, then adds the other as its value.
         elif varq(left):
             yield state.ext_s({left: right})
@@ -241,7 +243,7 @@ class Eq(Relation):
         #  So they get to be a special case before we start dealing with collections.
         elif isinstance(left, str):
             if left == right:
-                yield state.update()
+                yield state
             else:
                 yield state.update(valid=False)
         # If it's a collection, then it has a length, so all collections should be caught by this.
@@ -313,14 +315,14 @@ class Eq(Relation):
                         differenceGoal = Conj(*[Eq(leftKey, rightKey) for (leftKey, rightKey) in combinationSet])
                         yield from differenceGoal.run(state)
                 else:
-                    yield state.update()
+                    yield state
                 return
             except Exception as err:
                 return
 
         elif left == right:
             # If all else failes, just check if they're equal.
-            yield state.update()
+            yield state
         else:
             yield state.update(valid=False)
 
@@ -354,7 +356,7 @@ class Succeed(Goal):
     """Leaves the state at valid, a no-op.
     """
     def __run__(self, state):
-        yield state.update()
+        yield state
 
 class Fresh(Goal):
     """Fresh is used to bring new variables into an assertion.
@@ -389,7 +391,7 @@ class Fresh(Goal):
 
     def __run__(self, state):
         goal = self.getFunctionGoal()
-        yield from goal.run(state)
+        yield from goal.run(state.update())
 
 class Call(Fresh):
     """Call works almost exactly the same as Fresh, the only difference is that the state it returns
@@ -398,7 +400,7 @@ class Call(Fresh):
     """
     def __run__(self, state):
         goal = self.getFunctionGoal()
-        for result in goal.run(state):
+        for result in goal.run(state.update()):
             reified_state = {}
             for var in self.function_vars:
                 reified_state[var] = result.reify(var)
@@ -421,7 +423,7 @@ class Disj(Connective):
     def __run__(self, state):
         goals = self.goals
         # Each goal generates its own state stream based on the same start state.
-        stateStreams = [goal.run(state) for goal in goals]
+        stateStreams = [goal.run(state.update()) for goal in goals]
         newStreams = []
         while stateStreams:
             # Read in a state from each stream in turn
@@ -457,12 +459,12 @@ class Conj(Connective):
         them will eventually trickle through.
         """
         if(len(self.goals) == 1):
-            yield from self.goals[0].run(state)
+            yield from self.goals[0].run(state.update())
             return
 
         anyStreams = True
         goals = self.goals
-        goalStreams = [[goals[0].run(state)]] + [[] for i in range(0, len(goals))]
+        goalStreams = [[goals[0].run(state.update())]] + [[] for i in range(0, len(goals))]
         while anyStreams:
             anyStreams = False
             for goalStreamIndex in range(0, len(goals)):
