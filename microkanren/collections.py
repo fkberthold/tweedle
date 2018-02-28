@@ -28,6 +28,58 @@ class list_leno(Relation):
         else:
             yield state.update(valid=False)
 
+class indexo(Relation):
+    def __init__(self, lst, value, index):
+        super().__init__()
+        self.lst = lst
+        self.value = value
+        self.index = index
+
+    def __run__(self, state):
+        lst = state.reify(self.lst)
+        value = state.reify(self.value)
+        index = state.reify(self.index)
+        if varq(lst) and varq(index):
+            lst_len = 1
+            while True:
+                with conj as lst_gen:
+                    list_leno(lst, lst_len)
+                    indexo(lst, value, index)
+                yield from lst_gen.run(state)
+                lst_len += 1
+        elif varq(value) and varq(index):
+            for n in range(len(lst)):
+                with conj as val_ind:
+                    Eq(value, lst[n])
+                    with disj:
+                        Eq(index, n)
+                        Eq(index, n - len(lst))
+            yield from val_ind.run(state)
+        elif varq(lst):
+            lst_len = index + 1 if index >= 0 else -index
+            while True:
+                with conj as lst_gen:
+                    list_leno(lst, lst_len)
+                    indexo(lst, value, index)
+                yield from lst_gen.run(state)
+                lst_len += 1
+        elif varq(value):
+            if len(lst) <= index or len(lst) < -index:
+                yield state.update(valid=False)
+            else:
+                yield from Eq(value, lst[index])
+        elif varq(index):
+            for n in range(len(lst)):
+                if lst[n] == value:
+                    yield from Eq(index, n).run(state)
+                    yield from Eq(index, n - len(lst))
+        else:
+            if len(lst) <= index or len(lst) < -index:
+                yield state.update(valid=False)
+            elif lst[index] == value:
+                yield state.update()
+
+
 class ConstructList(Relation):
     def __init__(self, lst, knownVarList=[], minLength=0, maxLength=None):
         super().__init__()
