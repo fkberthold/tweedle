@@ -448,7 +448,7 @@ class Conj(Connective):
         if self.goals:
             return " & ".join([("(%s)" % str(goal)) if isinstance(goal, Connective) else str(goal) for goal in self.goals])
         else:
-            return "CONJ"
+            return "EMPTY CONJ"
 
     def __run__(self, state):
         """When pulling states from the goals, it does it using the same pattern as described in:
@@ -456,6 +456,10 @@ class Conj(Connective):
         this ensures that even if one of the goals generates an infinite number of states, all of
         them will eventually trickle through.
         """
+        if(len(self.goals) == 0):
+            yield state
+            return
+
         if(len(self.goals) == 1):
             yield from self.goals[0].run(state)
             return

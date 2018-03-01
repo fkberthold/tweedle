@@ -49,6 +49,7 @@ class Test_State(unittest.TestCase):
         newState = State()
         self.assertEqual(newState.substitution, {})
         self.assertTrue(newState.valid)
+        self.assertEqual(len(newState), 0)
         self.assertEqual(str(newState), "Substitutions:\n")
 
     def test_valid_with_sub(self):
@@ -56,6 +57,7 @@ class Test_State(unittest.TestCase):
         newState = State({var: 3})
         self.assertEqual(newState.substitution, {var: 3})
         self.assertTrue(newState.valid)
+        self.assertEqual(len(newState), 1)
         self.assertEqual(str(newState), "Substitutions:\n  %s: %s\n" % (str(var), 3))
 
     def test_invalid(self):
@@ -182,6 +184,13 @@ class Test_Conj(unittest.TestCase):
         cls.var1 = LVar()
         cls.var2 = LVar()
 
+    def test_empty(self):
+        goal = Conj()
+        result = list(goal.run())
+
+        self.assertEqual(str(goal), "EMPTY CONJ")
+        self.assertEqual(result, [State()])
+
     def test_just_one_valid(self):
         result = list(Conj(Eq(3,3)).run())
         self.assertEqual(result, [State()])
@@ -198,6 +207,11 @@ class Test_Conj(unittest.TestCase):
         result = list(testConj.run())
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0][self.var1], 3)
+
+    def test_two_amper_to_string(self):
+        testConj = Eq(self.var1, 3) & Eq(self.var2, 4)
+
+        self.assertEqual(str(testConj), "Eq(%s,3) & Eq(%s,4)" % (str(self.var1), str(self.var2)))
 
     def test_two_amper_without_branching(self):
         testConj = Fresh(lambda x: Eq(x, self.var1) & Eq(x, 3))
@@ -230,6 +244,13 @@ class Test_Disj(unittest.TestCase):
         cls.var1 = LVar()
         cls.var2 = LVar()
 
+    def test_empty(self):
+        goal = Disj()
+        result = list(goal.run())
+
+        self.assertEqual(str(goal), "EMPTY DISJ")
+        self.assertEqual(result, [])
+
     def test_just_one_valid(self):
         result = list(Disj(Eq(3,3)).run())
         self.assertEqual(result, [State()])
@@ -252,6 +273,7 @@ class Test_Disj(unittest.TestCase):
 
     def test_two_operator(self):
         testDisj = (Eq(self.var1, 3) | Eq(self.var1, 4))
+        self.assertEqual(str(testDisj), "Eq(%s,3) | Eq(%s,4)" % (str(self.var1), str(self.var1)))
 
         result = list(testDisj.run())
         self.assertEqual(len(result), 2)
@@ -259,6 +281,7 @@ class Test_Disj(unittest.TestCase):
         has4 = [st for st in result if st[self.var1] == 4]
         self.assertEqual(len(has3), 1)
         self.assertEqual(len(has4), 1)
+
     def test_get_first(self):
         with disj as testDisj:
             Eq(self.var1, 3)
@@ -274,7 +297,10 @@ class Test_Fresh(unittest.TestCase):
         self.assertEqual(result, [State()])
 
     def test_one_fresh(self):
-        result = list(Fresh(lambda x: Eq(x,3)).run())
+        next_var_id = LVar.nextId
+        goal = Fresh(lambda x: Eq(x,3))
+        self.assertEqual(str(goal), "Fresh [x(%i)]: <class 'microkanren.ukanren.Eq'>" % next_var_id)
+        result = list(goal.run())
         self.assertEqual(len(result), 1)
         self.assertEqual(len(result[0].substitution), 1)
         var = list(result[0].substitution.keys())[0]

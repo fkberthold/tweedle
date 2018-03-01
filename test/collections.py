@@ -5,14 +5,6 @@ from microkanren.ukanren import *
 from microkanren.collections import *
 from microkanren.macro import macros, conj, disj, goal, call
 
-empty_state = State()
-
-@goal
-def is3or4(x):
-    with disj:
-        Eq(x, 3)
-        Eq(x, 4)
-
 class Test_List_Leno(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -75,7 +67,7 @@ class Test_List_Leno(unittest.TestCase):
         self.assertTrue(all([varq(v) for st in result for v in st[self.var1]]))
 
 
-class Test_List_Leno(unittest.TestCase):
+class Test_Indexo(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.var1 = LVar()
