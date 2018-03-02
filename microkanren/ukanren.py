@@ -222,7 +222,7 @@ class Eq(Relation):
         self.right = right
 
     def __repr__(self):
-        return "Eq(%s,%s)" % (self.left, self.right)
+        return "Eq(%s,%s)" % (repr(self.left), repr(self.right))
 
     def __run__(self, state):
         """As described above, this reifies, then unifies `left` and `right` in reference to `state`."""
