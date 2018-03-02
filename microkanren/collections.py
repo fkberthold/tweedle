@@ -1,9 +1,11 @@
 from microkanren.ukanren import *
 import copy
 import itertools
+from microkanren.macro import macros, conj, disj, goal, call
+import time
 
-def emptyo(lst):
-    return Eq(lst, [])
+def list_emptyo(lst):
+    return list_leno(lst, 0)
 
 class list_leno(Relation):
     def __init__(self, lst, length):
@@ -12,21 +14,27 @@ class list_leno(Relation):
         self.length = length
 
     def __run__(self, state):
-        if varq(self.lst) and varq(self.length):
-            length = 0
+        lst = state.reify(self.lst)
+        length = state.reify(self.length)
+
+        if varq(lst) and varq(length):
+            newLength = 0
             newList = []
             while True:
-                yield from Conj(Eq(self.length, length), Eq(self.lst, newList)).run(state)
+                yield from Conj(Eq(length, newLength), Eq(lst, newList)).run(state)
                 newList = newList + [LVar()]
-                length += 1
-        elif varq(self.lst):
-            yield from Eq(self.lst, [LVar() for count in range(0,self.length)]).run(state)
-        elif varq(self.length):
-            yield from Eq(self.length, len(self.lst)).run(state)
-        elif len(self.lst) == self.length:
+                newLength += 1
+        elif varq(lst):
+            yield from Eq(lst, [LVar() for count in range(0,length)]).run(state)
+        elif varq(length):
+            yield from Eq(length, len(lst)).run(state)
+        elif len(lst) == length:
             yield state
         else:
             yield state.update(valid=False)
+
+def list_emptyo(lst):
+    return list_leno(lst, 0)
 
 class indexo(Relation):
     def __init__(self, lst, value, index):
@@ -39,6 +47,7 @@ class indexo(Relation):
         lst = state.reify(self.lst)
         value = state.reify(self.value)
         index = state.reify(self.index)
+
         if varq(lst) and varq(index):
             lst_len = 1
             while True:
@@ -54,30 +63,34 @@ class indexo(Relation):
                     with disj:
                         Eq(index, n)
                         Eq(index, n - len(lst))
-            yield from val_ind.run(state)
+                yield from val_ind.run(state)
         elif varq(lst):
             lst_len = index + 1 if index >= 0 else -index
             while True:
                 with conj as lst_gen:
                     list_leno(lst, lst_len)
                     indexo(lst, value, index)
+
                 yield from lst_gen.run(state)
                 lst_len += 1
         elif varq(value):
             if len(lst) <= index or len(lst) < -index:
                 yield state.update(valid=False)
             else:
-                yield from Eq(value, lst[index])
+                yield from Eq(value, lst[index]).run(state)
         elif varq(index):
             for n in range(len(lst)):
-                if lst[n] == value:
-                    yield from Eq(index, n).run(state)
-                    yield from Eq(index, n - len(lst))
+                with conj as lst_gen:
+                    Eq(lst[n], value)
+                    with disj:
+                        Eq(index, n)
+                        Eq(index, n - len(lst))
+                yield from lst_gen.run(state)
         else:
             if len(lst) <= index or len(lst) < -index:
                 yield state.update(valid=False)
-            elif lst[index] == value:
-                yield state.update()
+            else:
+                yield from Eq(lst[index], value).run(state)
 
 
 class ConstructList(Relation):
