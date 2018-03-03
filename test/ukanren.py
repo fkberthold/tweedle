@@ -235,53 +235,53 @@ class Test_Disj(Test_Fixtures):
         self.assertEqual(result, [])
 
     def test_just_one_valid(self):
-        result = list(Disj(Eq(3,3)).run())
+        result = list(Disj(Eq('Queen','Queen')).run())
         self.assertEqual(result, [State()])
 
     def test_just_one_invalid(self):
-        result = list(Disj(Eq(2,3)).run())
+        result = list(Disj(Eq('Pawn','Queen')).run())
         self.assertEqual(result, [])
 
     def test_two(self):
         with disj as testDisj:
-            Eq(self.var1, 3)
-            Eq(self.var1, 4)
+            Eq(self.var1, 'Walrus')
+            Eq(self.var1, 'Carpenter')
 
         result = list(testDisj.run())
         self.assertEqual(len(result), 2)
-        has3 = [st for st in result if st[self.var1] == 3]
-        has4 = [st for st in result if st[self.var1] == 4]
-        self.assertEqual(len(has3), 1)
-        self.assertEqual(len(has4), 1)
+        hasWalrus = [st for st in result if st[self.var1] == 'Walrus']
+        hasCarpenter = [st for st in result if st[self.var1] == 'Carpenter']
+        self.assertEqual(len(hasWalrus), 1)
+        self.assertEqual(len(hasCarpenter), 1)
 
     def test_two_operator(self):
-        testDisj = (Eq(self.var1, 3) | Eq(self.var1, 4))
-        self.assertEqual(str(testDisj), "Eq(%s,3) | Eq(%s,4)" % (str(self.var1), str(self.var1)))
+        testDisj = (Eq(self.var1, 'Walrus') | Eq(self.var1, 'Carpenter'))
+        self.assertEqual(str(testDisj), "Eq(%s,'Walrus') | Eq(%s,'Carpenter')" % (str(self.var1), str(self.var1)))
 
         result = list(testDisj.run())
         self.assertEqual(len(result), 2)
-        has3 = [st for st in result if st[self.var1] == 3]
-        has4 = [st for st in result if st[self.var1] == 4]
+        has3 = [st for st in result if st[self.var1] == 'Walrus']
+        has4 = [st for st in result if st[self.var1] == 'Carpenter']
         self.assertEqual(len(has3), 1)
         self.assertEqual(len(has4), 1)
 
     def test_get_first(self):
         with disj as testDisj:
-            Eq(self.var1, 3)
-            Eq(self.var1, 4)
+            Eq(self.var1, 'Walrus')
+            Eq(self.var1, 'Carpenter')
 
         result = list(testDisj.run(results=1))
         self.assertEqual(len(result), 1)
-        self.assertEqual(result[0][self.var1], 3)
+        self.assertEqual(result[0][self.var1], 'Walrus')
 
 class Test_Fresh(Test_Fixtures):
     def test_empty_fresh(self):
-        result = list(Fresh(lambda: Eq(3,3)).run())
+        result = list(Fresh(lambda: Eq('King','King')).run())
         self.assertEqual(result, [State()])
 
     def test_one_fresh(self):
         next_var_id = LVar.nextId
-        goal = Fresh(lambda x: Eq(x,3))
+        goal = Fresh(lambda x: Eq(x,'King'))
         self.assertEqual(str(goal), "Fresh [x(%i)]: <class 'microkanren.ukanren.Eq'>" % next_var_id)
         result = list(goal.run())
         self.assertEqual(len(result), 1)
@@ -291,21 +291,21 @@ class Test_Fresh(Test_Fixtures):
 
 class Test_Call(Test_Fixtures):
     def test_empty_call(self):
-        result = list(Call(lambda: Eq(3,3)).run())
+        result = list(Call(lambda: Eq('Knight','Knight')).run())
         self.assertEqual(result, [State()])
 
     def test_call_block(self):
         with call(x), call as callTest:
             with disj:
-                Eq(x, 3)
-                Eq(x, 4)
+                Eq(x, 'Treacle')
+                Eq(x, 'Honey')
         result = list(callTest.run())
         self.assertEqual(len(result), 2)
         var = [key for key in result[0].substitution.keys() if key.name == 'x'][0]
-        has3 = [st for st in result if st[var] == 3]
-        has4 = [st for st in result if st[var] == 4]
-        self.assertEqual(len(has3), 1)
-        self.assertEqual(len(has4), 1)
+        hasTreacle = [st for st in result if st[var] == 'Treacle']
+        hasHoney = [st for st in result if st[var] == 'Honey']
+        self.assertEqual(len(hasTreacle), 1)
+        self.assertEqual(len(hasHoney), 1)
 
 class Test_Goal(Test_Fixtures):
     def test_one_var(self):
