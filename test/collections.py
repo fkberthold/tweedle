@@ -382,6 +382,12 @@ class Test_Sliceo(Test_List_Fixtures):
         self.assertEqual(results[1][self.var1][-2:-1], self.tea_party[-2:-1])
         self.assertTrue(varq(results[1][self.var1][-1]))
 
+class Test_Rangeo(unittest.TestCase):
+    def test_no_limit_constant(self):
+        results = list(rangeo(3, None, None).run())
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0], State())
+
 if __name__ == "__main__":
     print("This test suite depends on macros to execute, so can't be")
     print("run independently. Please either run it through `run_tests.py`")

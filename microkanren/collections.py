@@ -4,7 +4,7 @@ import itertools
 from microkanren.macro import macros, conj, disj, goal, call
 import time
 
-class rangeo():
+class rangeo(Relation):
     """This is purely a helper class for the list relation.  It will not work
     correctly if start or end are given logic variables."""
     def __init__(self, num, start=None, end=None):
@@ -15,13 +15,19 @@ class rangeo():
 
     def __run__(self, state):
         num = state.reify(self.num)
+        start = state.reify(self.start)
+        end = state.reify(self.end)
+
         if start is None and end is None:
-            yield from Eq(num, 0).run(state)
-            count = 1
-            while True:
-                yield from Eq(num, count).run(state)
-                yield from Eq(num, -count).run(state)
-                count += 1
+            if varq(num):
+                yield from Eq(num, 0).run(state)
+                count = 1
+                while True:
+                    yield from Eq(num, count).run(state)
+                    yield from Eq(num, -count).run(state)
+                    count += 1
+            else:
+                yield state.update()
         elif start is None:
             count = end - 1
             if varq(num):
@@ -241,9 +247,14 @@ class sliceo(Relation):
         end = state.reify(self.end)
         sublst = state.reify(self.sublst)
 
-        if False:
-            pass
-
+        lvar_count = varq(lst) + varq(start) + varq(end) + varq(sublst)
+        if lvar_count > 2:
+            with conj as full_gen:
+                rangeo(start)
+                rangeo(end)
+                list_leno(lst, lst_len)
+                sliceo(lst, start, end, sublst)
+            yield from full_gen
         elif varq(lst) and (varq(start) or varq(end)):
             while True:
                 lst_len = len(sublst)
@@ -257,7 +268,7 @@ class sliceo(Relation):
                     Eq(start, None)
                     rangeo(start, None, None)
                 sliceo(lst, start, end, sublst)
-            yield from unknown_start_end.run(state)
+
         elif varq(sublst) and varq(start):
             yield from (Eq(start, None) & Eq(sublst, lst[:end])).run(state)
             yield from (Eq(start, 0) & Eq(sublst, lst[start:end])).run(state)
