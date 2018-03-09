@@ -417,3 +417,40 @@ class sliceo(Relation):
                 yield state.update(valid=False)
             else:
                 yield from Eq(lst[start:end], sublst).run(state)
+
+class set_leno(Relation):
+    """The equivalent to 'len'. We need to specify type here to make it generative.  This relation
+    is key for making the rest of the list relations generative aswell.
+    @param aset: A set which will have the same length as `length`
+    @param length: The length of `aset`
+    """
+    def __init__(self, aset, length):
+        super().__init__()
+        self.aset = aset
+        self.length = length
+
+    def __run__(self, state):
+        aset = state.reify(self.aset)
+        length = state.reify(self.length)
+
+        if varq(aset) and varq(length):
+            newLength = 0
+            newSet = set()
+            while True:
+                yield from Conj(Eq(length, newLength), Eq(aset, newSet)).run(state)
+                newSet = newSet | {LVar()}
+                newLength += 1
+        elif varq(aset):
+            yield from Eq(aset, {LVar() for count in range(0,length)}).run(state)
+        elif varq(length):
+            yield from Eq(length, len(aset)).run(state)
+        elif len(aset) == length:
+            yield state
+        else:
+            yield state.update(valid=False)
+
+def list_emptyo(lst):
+    """This simple relation just asserts that the given `lst` is empty.
+    """
+    return list_leno(lst, 0)
+

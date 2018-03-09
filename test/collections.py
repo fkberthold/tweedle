@@ -14,6 +14,15 @@ class Test_List_Fixtures(unittest.TestCase):
         cls.dinner_party = ['The Walrus', 'The Carpenter']
         cls.tea_party = ['Mad Hatter', 'March Hare', 'The Dormouse']
 
+class Test_Set_Fixtures(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.var1 = LVar()
+        cls.var2 = LVar()
+        cls.var3 = LVar()
+        cls.queens = {'Red Queen', 'White Queen', 'Queen of Hearts', 'Alice'}
+        cls.croquet_players = {'Queen of Hearts', 'Alice'}
+        cls.chess_pieces = {'Red Queen', 'White Queen', 'White King', 'White Knight'}
 
 class Test_List_Emptyo(Test_List_Fixtures):
     def test_empty(self):
@@ -491,6 +500,8 @@ class Test_Rangeo(unittest.TestCase):
         self.assertEqual(results[0][self.var], -2)
         self.assertEqual(results[1][self.var], -1)
         self.assertEqual(results[2][self.var], 0)
+
+class Test_Set_Leno()
 
 
 if __name__ == "__main__":
