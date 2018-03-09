@@ -277,11 +277,9 @@ class Test_Sliceo(Test_List_Fixtures):
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0], State())
 
-class Test_Sliceo(Test_List_Fixtures):
-    def test_constant_succeeds(self):
-        result = list(sliceo(self.tea_party, 1, 3, ['March Hare', 'The Dormouse']).run())
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0], State())
+    def test_constant_fails(self):
+        result = list(sliceo(self.tea_party, 0, 3, ['Mad Hatter', 'March Hare', 'The Dormouse', 'Alice']).run())
+        self.assertEqual(len(result), 0)
 
     def test_var_end(self):
         results = list(sliceo(self.tea_party, 1, self.var1, ['March Hare', 'The Dormouse']).run(results=3))
@@ -289,6 +287,16 @@ class Test_Sliceo(Test_List_Fixtures):
         self.assertEqual(results[0][self.var1], None)
         self.assertEqual(results[1][self.var1], 3)
         self.assertEqual(results[2][self.var1], 4)
+
+    def test_var_end_just_front(self):
+        results = list(sliceo(self.tea_party, 0, self.var1, ['Mad Hatter', 'March Hare']).run())
+        self.assertEqual(len(results), 2)
+        self.assertEqual(results[0][self.var1], 2)
+        self.assertEqual(results[1][self.var1], -1)
+
+    def test_var_end_fail(self):
+        results = list(sliceo(self.tea_party, 2, self.var1, ['March Hare', 'The Dormouse']).run(results=3))
+        self.assertEqual(len(results), 0)
 
     def test_var_start(self):
         results = list(sliceo(self.tea_party, self.var1, 3, ['March Hare', 'The Dormouse']).run())
@@ -302,6 +310,10 @@ class Test_Sliceo(Test_List_Fixtures):
         self.assertEqual(results[0][self.var1], None)
         self.assertEqual(results[1][self.var1], 0)
         self.assertEqual(results[2][self.var1], -3)
+
+    def test_var_start_too_long_fail(self):
+        results = list(sliceo(self.tea_party, self.var1, 2, ['Mad Hatter', 'March Hare', 'The Dormouse', 'Alice']).run(results=3))
+        self.assertEqual(len(results), 0)
 
     def test_var_sublist(self):
         result = list(sliceo(self.tea_party, 1, 3, self.var1).run())
@@ -382,11 +394,104 @@ class Test_Sliceo(Test_List_Fixtures):
         self.assertEqual(results[1][self.var1][-2:-1], self.tea_party[-2:-1])
         self.assertTrue(varq(results[1][self.var1][-1]))
 
+    def test_var_list_indexes_none_pos_past_end(self):
+        results = list(sliceo(self.var1, None, 1, self.tea_party).run())
+        self.assertEqual(len(results), 0)
+
+    def test_var_list_indexes_pos_pos_sublist_too_long(self):
+        results = list(sliceo(self.var1, 1, 2, self.tea_party).run())
+        self.assertEqual(len(results), 0)
+
+    def test_var_list_indexes_pos_pos_length_out_of_bounds(self):
+        results = list(sliceo(self.var1, 1, 4, self.tea_party).run(results=1))
+        self.assertEqual(len(results), 1)
+        self.assertEqual(len(results[0][self.var1]), 4)
+        self.assertTrue(varq(results[0][self.var1][0]))
+        self.assertEqual(results[0][self.var1][1:4], self.tea_party)
+
+    def test_var_list_indexes_neg_none_too_short(self):
+        results = list(sliceo(self.var1, -2, None, self.tea_party).run())
+        self.assertEqual(len(results), 0)
+
+    def test_var_list_indexes_neg_pos_too_short(self):
+        results = list(sliceo(self.var1, -1, 1, self.tea_party).run())
+        self.assertEqual(len(results), 0)
+
+    def test_var_list_indexes_neg_neg_makes_empty(self):
+        results = list(sliceo(self.var1, -1, -2, self.tea_party).run())
+        self.assertEqual(len(results), 1)
+        self.assertEqual(len(results[0][self.var1]), 0)
+
+    def test_more_than_one_var(self):
+        results = list(sliceo(self.tea_party, self.var1, self.var2, ["March Hare", "The Dormouse"]).run(results=4))
+        self.assertEqual(len(results), 4)
+        for result in results:
+            self.assertEqual(self.tea_party[result[self.var1]:result[self.var2]], ["March Hare", "The Dormouse"])
+
 class Test_Rangeo(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.var = LVar()
+
     def test_no_limit_constant(self):
         results = list(rangeo(3, None, None).run())
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0], State())
+
+    def test_from_start_constant_succeed(self):
+        results = list(rangeo(3, -2, None).run())
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0], State())
+
+    def test_from_start_constant_fail(self):
+        results = list(rangeo(-3, -2, None).run())
+        self.assertEqual(len(results), 0)
+
+    def test_from_end_constant_succeed(self):
+        results = list(rangeo(-1, None, 2).run())
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0], State())
+
+    def test_from_end_constant_fail(self):
+        results = list(rangeo(2, None, 2).run())
+        self.assertEqual(len(results), 0)
+
+    def test_between_start_end_constant_succeed(self):
+        results = list(rangeo(-1, -1, 2).run())
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0], State())
+
+    def test_between_start_end_constant_fail(self):
+        results = list(rangeo(2, -1, 2).run())
+        self.assertEqual(len(results), 0)
+
+    def test_no_limit_var(self):
+        results = list(rangeo(self.var, None, None).run(results=4))
+        self.assertEqual(len(results), 4)
+        self.assertEqual(results[0][self.var], 0)
+        self.assertEqual(results[1][self.var], 1)
+        self.assertEqual(results[2][self.var], -1)
+        self.assertEqual(results[3][self.var], 2)
+
+    def test_from_start_var_succeed(self):
+        results = list(rangeo(self.var, -1, None).run(results=2))
+        self.assertEqual(len(results), 2)
+        self.assertEqual(results[0][self.var], -1)
+        self.assertEqual(results[1][self.var], 0)
+
+    def test_from_end_var_succeed(self):
+        results = list(rangeo(self.var, None, 1).run(results=2))
+        self.assertEqual(len(results), 2)
+        self.assertEqual(results[0][self.var], 0)
+        self.assertEqual(results[1][self.var], -1)
+
+    def test_between_start_end_var_succeed(self):
+        results = list(rangeo(self.var, -2, 1).run())
+        self.assertEqual(len(results), 3)
+        self.assertEqual(results[0][self.var], -2)
+        self.assertEqual(results[1][self.var], -1)
+        self.assertEqual(results[2][self.var], 0)
+
 
 if __name__ == "__main__":
     print("This test suite depends on macros to execute, so can't be")

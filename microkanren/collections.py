@@ -248,49 +248,13 @@ class sliceo(Relation):
         sublst = state.reify(self.sublst)
 
         lvar_count = varq(lst) + varq(start) + varq(end) + varq(sublst)
-        if lvar_count > 2:
-            with conj as full_gen:
+        if lvar_count > 1:
+            with conj(lst_len), conj as full_gen:
+                list_leno(lst, lst_len)
                 rangeo(start)
                 rangeo(end)
-                list_leno(lst, lst_len)
                 sliceo(lst, start, end, sublst)
-            yield from full_gen
-        elif varq(lst) and (varq(start) or varq(end)):
-            while True:
-                lst_len = len(sublst)
-                with conj as list_gen:
-                    leno(lst, lst_len)
-                    sliceo(lst, start, end, sublst)
-                yield from list_gen
-        elif varq(start) and varq(end):
-            with conj as unknown_start_end:
-                with disj:
-                    Eq(start, None)
-                    rangeo(start, None, None)
-                sliceo(lst, start, end, sublst)
-
-        elif varq(sublst) and varq(start):
-            yield from (Eq(start, None) & Eq(sublst, lst[:end])).run(state)
-            yield from (Eq(start, 0) & Eq(sublst, lst[start:end])).run(state)
-            current_start = 1
-            while True:
-                yield from (Eq(start, current_start) & Eq(sublst, lst[start:end]))
-                yield from (Eq(start, -current_start) & Eq(sublst, lst[start:end]))
-                current_start += 1
-        elif varq(sublst) and varq(end):
-            yield from (Eq(end, 0) & Eq(sublst, lst[start:end])).run(state)
-            yield from (Eq(end, None) & Eq(sublst, lst[start:])).run(state)
-            current_end = 1
-            while True:
-                yield from (Eq(end, current_end) & Eq(sublst, lst[start:end]))
-                yield from (Eq(end, -current_end) & Eq(sublst, lst[start:end]))
-                current_end += 1
-        elif varq(lst) and varq(sublst):
-            sublst_len = end - start if end > start else 0
-            with conj as sublst_empty:
-                list_leno(sublst, sublst_len)
-                sliceo(lst, start, end, sublst)
-            yield from sublst_empty.run(state)
+            yield from full_gen.run(state)
         elif varq(lst):
             if start is None:
                 if end is None:
@@ -337,7 +301,7 @@ class sliceo(Relation):
                         yield state.update(valid=False)
                         return
                     else:
-                        lst_len = end
+                        lst_len = min(end - start, len(sublst))
                 else:
                     # Since we know where it starts, the interval in the middle, and
                     #  how far from the end the end of the sublst is, that means
