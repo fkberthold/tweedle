@@ -88,7 +88,7 @@ class list_leno(Relation):
         elif varq(length):
             yield from Eq(length, len(lst)).run(state)
         elif len(lst) == length:
-            yield state
+            yield state.update()
         else:
             yield state.update(valid=False)
 
@@ -424,33 +424,64 @@ class set_leno(Relation):
     @param aset: A set which will have the same length as `length`
     @param length: The length of `aset`
     """
-    def __init__(self, aset, length):
+    def __init__(self, aSet, length):
         super().__init__()
-        self.aset = aset
+        self.aSet = aSet
         self.length = length
 
     def __run__(self, state):
-        aset = state.reify(self.aset)
+        aSet = state.reify(self.aSet)
         length = state.reify(self.length)
 
-        if varq(aset) and varq(length):
+        if varq(aSet) and varq(length):
             newLength = 0
             newSet = set()
             while True:
-                yield from Conj(Eq(length, newLength), Eq(aset, newSet)).run(state)
+                yield from Conj(Eq(length, newLength), Eq(aSet, newSet)).run(state)
                 newSet = newSet | {LVar()}
                 newLength += 1
-        elif varq(aset):
-            yield from Eq(aset, {LVar() for count in range(0,length)}).run(state)
+        elif varq(aSet):
+            yield from Eq(aSet, {LVar() for count in range(0,length)}).run(state)
         elif varq(length):
-            yield from Eq(length, len(aset)).run(state)
-        elif len(aset) == length:
-            yield state
+            yield from Eq(length, len(aSet)).run(state)
+        elif len(aSet) == length:
+            yield state.update()
         else:
             yield state.update(valid=False)
 
-def list_emptyo(lst):
-    """This simple relation just asserts that the given `lst` is empty.
+def set_emptyo(aSet):
+    """This simple relation just asserts that the given `aSet` is empty.
     """
-    return list_leno(lst, 0)
+    return set_leno(aSet, 0)
 
+class set_membero(Relation):
+    """Asserts that a set contains a given value."""
+    def __init__(self, aSet, member):
+        super().__init__()
+        self.aSet = aSet
+        self.member = member
+
+    def __run__(self, state):
+        aSet = state.reify(self.aSet)
+        member = state.reify(self.member)
+
+        if varq(aSet):
+            with conj(length), conj as genSet:
+                set_leno(aSet, length)
+                set_membero(aSet, member)
+            yield from genSet.run(state)
+        elif varq(member):
+            if member in aSet:
+                yield state.update()
+            else:
+                for value in aSet:
+                    yield from Eq(member, value).run(state)
+        elif member in aSet:
+            yield state.update()
+        else:
+            lvars = [value for value in aSet if varq(value)]
+            if lvars:
+                for lvar in lvars:
+                    yield from Eq(lvar, member).run(state)
+            else:
+                yield state.update(valid=False)

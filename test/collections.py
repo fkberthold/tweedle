@@ -501,8 +501,87 @@ class Test_Rangeo(unittest.TestCase):
         self.assertEqual(results[1][self.var], -1)
         self.assertEqual(results[2][self.var], 0)
 
-class Test_Set_Leno()
+class Test_Set_Leno(Test_Set_Fixtures):
+    def test_constant_succeed(self):
+        results = list(set_leno(self.queens, 4).run())
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0], State())
 
+    def test_constant_fail(self):
+        results = list(set_leno(self.queens, 5).run())
+        self.assertEqual(len(results), 0)
+
+    def test_set_succeed(self):
+        results = list(set_leno(self.var1, 3).run())
+        self.assertEqual(len(results), 1)
+        self.assertTrue(all([varq(value) for value in results[0][self.var1]]))
+
+    def test_length_succeed(self):
+        results = list(set_leno(self.queens, self.var1).run())
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0][self.var1], 4)
+
+    def test_both_succeed(self):
+        results = list(set_leno(self.var1, self.var2).run(results=3))
+        self.assertEqual(len(results), 3)
+        for (result, length) in zip(results, range(0, 3)):
+            self.assertEqual(len(result[self.var1]), length)
+            self.assertEqual(result[self.var2], length)
+            self.assertTrue(all([varq(value) for value in result[self.var1]]))
+
+class Test_Set_Emptyo(Test_Set_Fixtures):
+    def test_constant_succeed(self):
+        results = list(set_emptyo(set()).run())
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0], State())
+
+    def test_var_succeed(self):
+        results = list(set_emptyo(self.var1).run())
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0][self.var1], set())
+
+class Test_Set_Membero(Test_Set_Fixtures):
+    def test_constant_succeed(self):
+        results = list(set_membero(self.queens, 'Alice').run())
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0], State())
+
+    def test_constant_succeed(self):
+        results = list(set_membero(self.queens, 'Dinah').run())
+        self.assertEqual(len(results), 0)
+
+    def test_set_with_vars_constant_matches(self):
+        results = list(set_membero({'Spades', 'Clubs', self.var1, self.var2}, 'Spades').run())
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0], State())
+
+    def test_set_with_vars_var_matches(self):
+        results = list(set_membero({'Spades', 'Clubs', self.var1, self.var2}, 'Hearts').run())
+        self.assertEqual(len(results), 2)
+        self.assertTrue(any([result[self.var1] == 'Hearts' for result in results]))
+        self.assertTrue(any([result[self.var2] == 'Hearts' for result in results]))
+        self.assertTrue(not any([result[self.var1] == 'Hearts' and result[self.var2] == 'Hearts' for result in results]))
+
+    def test_set_with_var_has_same_var(self):
+        results = list(set_membero({'Dinah', self.var1}, self.var1).run())
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0], State())
+
+    def test_set_and_var(self):
+        results = list(set_membero(self.queens, self.var1).run())
+        self.assertEqual(len(results), 4)
+        self.assertEqual(self.queens, {result[self.var1] for result in results})
+
+    def test_set_is_var(self):
+        results = list(set_membero(self.var1, 'Dinah').run(results=4))
+        self.assertEqual(len(results), 4)
+        self.assertEqual(len(results[0][self.var1]), 1)
+        self.assertEqual(len(results[1][self.var1]), 2)
+        self.assertEqual(len(results[2][self.var1]), 2)
+        self.assertEqual(len(results[3][self.var1]), 3)
+        for result in results:
+            a_set = result[self.var1]
+            self.assertTrue(any([result[val] == 'Dinah' for val in a_set]))
 
 if __name__ == "__main__":
     print("This test suite depends on macros to execute, so can't be")
