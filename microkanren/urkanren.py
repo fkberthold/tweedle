@@ -1,11 +1,74 @@
 import types
-import collections
-import copy
-import traceback
-import sys
 from inspect import signature
 
+"""UrKanren
+
+The following is intended to help both myself and others understand micro-kanren with
+constraints.
+
+While the overall goal of this project is to make a fully Pythonic Kanren, for the
+purposes of this file the emphasis is clarity, particularly for those who are using
+it to supliment reading papers on the subject.
+
+The papers I've found to be the most illuminating and which have directly impacted
+the design here are:
+
+µKanren: A Minimal Functional Core for Relational Programming
+    http://webyrd.net/scheme-2013/papers/HemannMuKanren2013.pdf
+
+A Framework for Extending microKanren with Constraints
+    https://arxiv.org/pdf/1701.00633
+"""
+
+class Link(object):
+    """A Lisp style linked list.
+
+    "What?" I hear you ask, "This is Python we have plenty of very nice
+    data structures, why on Earth would we want Lisp style lists?"
+
+    And that's true, for getting real work done, I'll take Python lists over
+    linked lists any day.
+
+    But. One of the interesting things you can do in micro-kanren is represent
+    cases where you know things about the front of a list and have no idea how
+    long the list is.  For example, I could say that I know for the list `l` that
+    `l[0] == 'cake'`, and that is all I know about the list. It may have 100 values,
+    or `'cake'` may be all there is. This is very hard to represent using Python lists,
+    but in this style of linked list can be represented like this: `Link('cake', LogicVariable(0))`
+    """
+    def __init__(self, head=None, tail=None):
+        self.head = head
+        if isinstance(tail, type(self)) and tail.is_empty():
+            self.tail = None
+        else:
+            self.tail = tail
+
+    def __repr__(self):
+        if self.is_empty():
+            return "()"
+        point_to = self
+        str_repr = "(%s" % str(self.head)
+        while isinstance(point_to.tail, type(self)):
+            point_to = point_to.tail
+            str_repr += " "
+            str_repr += "%s" % str(point_to.head)
+        if point_to.tail is None:
+            str_repr += ")"
+        else:
+            str_repr += " . %s)" % str(point_to.tail)
+        return str_repr
+
+    def is_empty(self):
+        return self.head is None and self.tail is None
+
+
 class LogicVariable(object):
+    """This is a minor deviation from how most of the papers handle logic variables.
+    The various scheme dialects aren't big on classes, so they chose instead to just
+    represent logic variables as integers.
+    This is terrible for clarity, and makes it hard to attach other data to your
+    variable, like a name.
+    """
     def __init__(self, identifier, name=None):
         self.id = identifier
         self.name = name
@@ -14,10 +77,14 @@ class LogicVariable(object):
         return isinstance(other, LogicVariable) and self.id == other.id
 
     def __repr__(self):
+        """Why are LogicVariables preceded by `+`? First because I wanted to make it
+        clear when something was a LogicVariable and not just an integer. Second the
+        `+` unary operator in Python is how we're creating LogicVariables in the main
+        code base."""
         if self.name:
-            return "?%s(%i)" % (self.name, self.id)
+            return "+%s(%i)" % (self.name, self.id)
         else:
-            return "?%i" % self.id
+            return "+%i" % self.id
 
     def __hash__(self):
         return self.id
@@ -111,10 +178,10 @@ def unify(left, right, substitution):
         return ext_s(left, right, substitution)
     elif varq(right):
         return ext_s(right, left, substitution)
-    elif isinstance(left, list) and isinstance(right, list) and len(left) == len(right) and len(left) > 0:
-        headSub = unify(left[0], right[0], substitution)
+    elif isinstance(left, Link) and isinstance(right, Link):
+        headSub = unify(left.head, right.head, substitution)
         if headSub is not False:
-            return unify(left[1:], right[1:], headSub)
+            return unify(left.tail, right.tail, headSub)
         else:
             return False
     elif left == right:
