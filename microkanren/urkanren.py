@@ -61,6 +61,20 @@ class Link(object):
     def is_empty(self):
         return self.head is None and self.tail is None
 
+def listToLinks(lst):
+    """Linked Lists are a neat, elegant data structure...
+    And a pain to code by hand.
+    @param lst: The python list structure to convert.
+    @return: A linked list converted from the `lst`.`
+    """
+    assert isinstance(lst, list), "Only lists can be convernted to Links."
+    if lst == []:
+        return Link()
+    else:
+        if isinstance(lst[0], list):
+            return Link(listToLinks(lst[0]), listToLinks(lst[1:]))
+        else:
+            return Link(lst[0], listToLinks(lst[1:]))
 
 class LogicVariable(object):
     """This is a minor deviation from how most of the papers handle logic variables.
@@ -189,32 +203,30 @@ def unify(left, right, substitution):
     else:
         return False
 
-def call_fresh(f):
+def call_fresh(function):
     """Takes a *-arity function which returns a list of states.  It assigns the given argument
         an unassigned term.  It then returns a function that takes a state and returns a list of
         states."""
     def call_fresh_help(state):
-        c = state.count
-        params = signature(f).parameters
-        arg_count = len(params)
-        new_c = c + arg_count
-        new_vars = [var(number, name) for (number, name) in zip(range(c, new_c), params)]
-        fun = f(*new_vars)
-        newState = State(state.substitution, new_c)
-        yield from fun(newState)
+        count = state.count
+        name = list(signature(function).parameters)[0]  # Gets the names of all of the arguments for 'function'
+        new_var = var(count, name)
+        goal = function(new_var)
+        newState = State(state.substitution, count + 1)
+        yield from goal(newState)
     return generate(call_fresh_help)
 
-def disj(*gs):
+def disj(g1, g2):
     """Take multiple relations. For each one that evaluates true, concatenate and return
         it's results."""
     def disj_help(state):
-        yield from mplus(*[g(state) for g in gs])
+        yield from mplus(g1(state), g2(state))
     return generate(disj_help)
 
-def conj(*gs):
+def conj(g1, g2):
     """Take two relations. Determine the result if both are true."""
     def conj_help(state):
-        yield from bind(*gs)(state)
+        yield from bind(g1, g2)(state)
     return conj_help
 
 def generate(fun):
@@ -239,12 +251,42 @@ def generate(fun):
                 yield from result
     return generate_help
 
-def mplus(*states):
-    if len(states) == 0:
-        return empty
-    else:
-        stateStreams = states
+def mplus(state_stream1, state_stream2):
+    stateStreams = [state_stream1, state_stream2]
+    newStreams = []
+    while stateStreams:
+        for stateStream in stateStreams:
+            try:
+                result = stateStream.__next__()
+                if isinstance(result, State):
+                    yield result
+                else:
+                    newStreams.append(result)
+                newStreams.append(stateStream)
+            except StopIteration:
+                pass
+        stateStreams=newStreams
+        newStreams=[]
+
+def bind(goal1, goal2):
+    def bind_help(state):
+        goals = [goal1, goal2]
+        stateStreams = []
         newStreams = []
+        for state in goal1(state):
+            stateStreams = [goal2(unit(state))]
+            for stateStream in stateStreams:
+                try:
+                    result = stateStream.__next__()
+                    if isinstance(result, State):
+                        yield result
+                    else:
+                        newStreams.append(result)
+                    newStreams.append(stateStream)
+                except StopIteration:
+                        pass
+            stateStreams = newStreams
+            newStreams = []
         while stateStreams:
             for stateStream in stateStreams:
                 try:
@@ -255,45 +297,8 @@ def mplus(*states):
                         newStreams.append(result)
                     newStreams.append(stateStream)
                 except StopIteration:
-                    pass
-            stateStreams=newStreams
-            newStreams=[]
-
-def bind(*goals):
-    def bind_help(states):
-        if len(goals) == 0:
-            yield from states
-        elif len(goals) == 1:
-            yield from goals[0](states)
-        else:
-            stateStreams = []
+                        pass
+            stateStreams = newStreams
             newStreams = []
-            for state in goals[0](states):
-                stateStreams = [bind(*goals[1:])(unit(state))] + stateStreams
-                for stateStream in stateStreams:
-                    try:
-                        result = stateStream.__next__()
-                        if isinstance(result, State):
-                            yield result
-                        else:
-                            newStreams.append(result)
-                        newStreams.append(stateStream)
-                    except StopIteration:
-                        pass
-                stateStreams = newStreams
-                newStreams = []
-            while stateStreams:
-                for stateStream in stateStreams:
-                    try:
-                        result = stateStream.__next__()
-                        if isinstance(result, State):
-                            yield result
-                        else:
-                            newStreams.append(result)
-                        newStreams.append(stateStream)
-                    except StopIteration:
-                        pass
-                stateStreams = newStreams
-                newStreams = []
 
     return generate(bind_help)
