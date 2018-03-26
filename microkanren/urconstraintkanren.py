@@ -193,29 +193,31 @@ def eq(left, right):
 
 def neq(left, right):
     def neqHelp(state):
-        constraint = state.constraints.get("neq", frozenset())
         substitution = state.constraints.get("eq", frozenset())
         leftValue = walk(left, substitution)
         rightValue = walk(right, substitution)
-        if leftValue == rightValue:
-            return mzero
-        else:
-            return unit(State({**state.constraints, **{"neq":constraint | {(left, right)}}}))
+        fails = any([leftValue == rightValue])
+        return make_constraint(state, fails, neq, left, right)
     return generate(neqHelp)
 
 def absento(elem, lst):
     def absentoHelp(state):
-        constraint = state.constraints.get("absento", frozenset())
         substitution = state.constraints.get("eq", frozenset())
         elemValue = walk(elem, substitution)
         lstValue = walk(lst, substitution)
-        if elemValue == lstValue:
-            return mzero
-        elif elemValue in lstValue:
-            return mzero
-        else:
-            return unit(State({**state.constraints, **{"absento":constraint | {(elem, lst)}}}))
+        fails = any([elemValue == lstValue,
+                     elemValue in lstValue])
+        return make_constraint(state, fails, absento, elem, lst)
     return generate(absentoHelp)
+
+def make_constraint(state, fails, function, *args):
+    # Python reflection lets us pull the name of the function that was passed
+    if fails:
+        return mzero
+    else:
+        name = function.__name__
+        constraint = state.constraints.get(name, frozenset())
+        return unit(State({**state.constraints, **{name:constraint | {args}}}))
 
 def unify(left, right, substitution):
     """Given a pair of terms determines if they can be equivalent.
@@ -285,10 +287,6 @@ def generate(fun):
         else:
             result = fun(state)
             yield from applyConstraints(result)
-#            if isinstance(result, State):
-#                yield applyConstraints(result)
-#            else:
-#                yield from (applyConstraints(resultState) for resultState in result)
     return generate_help
 
 def applyConstraints(state):
@@ -314,7 +312,7 @@ def mplus(state_stream1, state_stream2):
                 if isinstance(result, State):
                     yield result
                 else:
-                    newStreams.append(result)
+                    newStreams.append(result)  # TODO: Can this happen?
                 newStreams.append(stateStream)
             except StopIteration:
                 pass
@@ -327,14 +325,14 @@ def bind(goal1, goal2):
         stateStreams = []
         newStreams = []
         for state in goal1(state):
-            stateStreams = [goal2(unit(state))]
+            stateStreams += [goal2(unit(state))]
             for stateStream in stateStreams:
                 try:
                     result = stateStream.__next__()
                     if isinstance(result, State):
                         yield result
                     else:
-                        newStreams.append(result)
+                        newStreams.append(result) # TODO: Can this happen?
                     newStreams.append(stateStream)
                 except StopIteration:
                         pass
@@ -347,7 +345,7 @@ def bind(goal1, goal2):
                     if isinstance(result, State):
                         yield result
                     else:
-                        newStreams.append(result)
+                        newStreams.append(result) # TODO: Can this happen?
                     newStreams.append(stateStream)
                 except StopIteration:
                         pass
