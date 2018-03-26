@@ -1,9 +1,10 @@
 import types
 from inspect import signature
 
-"""UrKanren
+"""UrConstraintKanren
 
-The following is intended to help both myself and others understand micro-kanren constraints.
+The following is intended to help both myself and others understand micro-kanren with
+constraints.
 
 While the overall goal of this project is to make a fully Pythonic Kanren, for the
 purposes of this file the emphasis is clarity, particularly for those who are using
@@ -12,8 +13,10 @@ it to supliment reading papers on the subject.
 The papers I've found to be the most illuminating and which have directly impacted
 the design here are:
 
-µKanren: A Minimal Functional Core for Relational Programming
-    http://webyrd.net/scheme-2013/papers/HemannMuKanren2013.pdf
+A Framework for Extending microKanren with Constraints
+    https://arxiv.org/pdf/1701.00633
+
+In this file, the above paper will be referenced as FEMC.
 """
 
 class Link(object):
@@ -54,6 +57,14 @@ class Link(object):
             str_repr += " . %s)" % str(point_to.tail)
         return str_repr
 
+    def __contains__(self, elem):
+        if self.head == elem:
+            return True
+        elif isinstance(self.tail, type(self)):
+            return self.tail.__contains__(elem)
+        else:
+            return self.tail == elem
+
     def is_empty(self):
         return self.head is None and self.tail is None
 
@@ -92,30 +103,33 @@ class LogicVariable(object):
         `+` unary operator in Python is how we're creating LogicVariables in the main
         code base."""
         if self.name:
-            return "+%s(%i)" % (self.name, self.id)
+            return "var(%i, '%s')" % (self.id, self.name)
         else:
-            return "+%i" % self.id
+            return "var(%i)" % self.id
 
     def __hash__(self):
         return self.id
 
 class State(object):
-    def __init__(self, substitution={}, count=0):
+    """That the list of constraints is not pre-baked into the state is a key
+    deviation from FEMC.  I chose this route because it makes implementation
+    easier to write and understand and because it makes the implementaiton itself
+    more flexible."""
+    def __init__(self, constraints={}, count=0):
         assert count >= 0
-        assert len(substitution) <= count
         self.count = count
-        self.substitution = substitution
+        self.constraints = constraints
 
     def __hash__(self):
-        return hash((self.count, tuple(self.substitution.keys()), tuple(self.substitution.values())))
+        return hash((self.count, tuple(self.constraints)))
 
     def __eq__(self, other):
         assert isinstance(other, State)
-        return self.count == other.count and self.substitution == other.substitution
+        return self.count == other.count and self.constraints == other.constraints
 
     def __repr__(self):
-        subs = "\n".join(["  %s: %s" % (repr(key), repr(self.substitution[key])) for key in self.substitution])
-        return "\nCount: %i\nSubstitutions:\n%s" % (self.count, subs)
+#        subs = "\n".join(["  %s: %s" % (repr(key), repr(self.constraints[key])) for key in self.substitution])
+        return "\nCount: %i\nSubstitutions:\n%s" % (self.count, str(self.constraints))
 
 def var(c, name=None):
     """Var creates a Term by wrapping an integer in a list"""
@@ -138,18 +152,20 @@ def walk(term, substitution):
         If the term is a variable and the first value found is not a variable, return it.
         If the first value found is a variable, repeat walking on that variable."""
     if isinstance(term, LogicVariable):
-        value = substitution.get(term, term)
-        if isinstance(value, LogicVariable) and value != term:
-            return walk(value, substitution)
+        values = [value for (t, value) in substitution if t == term]
+        assert len(values) <= 1, "Something has gone horribly wrong we've asserted %s could be the following, any given value can only equal one thing: %s" % (str(term), str(values))
+        if values == []:
+            return term
+        elif isinstance(values[0], LogicVariable):
+            return walk(values[0], substitution)
         else:
-            return value
+            return values[0]
     else:
         return term
 
 def ext_s(variable, value, substitution):
     """Add a value v to variable x for the given substitution s"""
-    new = {variable:value}
-    return {**substitution, **new}
+    return substitution | {(variable, value)}
 
 # The state when there is a contradiction in terms.
 mzero = iter([])
@@ -167,12 +183,39 @@ def eq(left, right):
        If left or right is a variable, then asserts they are equal and adds it to,
           the state. If they are not equal, then returns an empty state."""
     def eqHelp(state):
-        unified = unify(left, right, state.substitution)
-        if isinstance(unified, dict):
-            return unit(State(unified, state.count))
+        substitution = state.constraints.get("eq", frozenset())
+        unified = unify(left, right, substitution)
+        if isinstance(unified, frozenset):
+            return unit(State({**state.constraints, **{"eq":unified}}, state.count))
         else:
             return mzero
     return generate(eqHelp)
+
+def neq(left, right):
+    def neqHelp(state):
+        constraint = state.constraints.get("neq", frozenset())
+        substitution = state.constraints.get("eq", frozenset())
+        leftValue = walk(left, substitution)
+        rightValue = walk(right, substitution)
+        if leftValue == rightValue:
+            return mzero
+        else:
+            return unit(State({**state.constraints, **{"neq":constraint | {(left, right)}}}))
+    return generate(neqHelp)
+
+def absento(elem, lst):
+    def absentoHelp(state):
+        constraint = state.constraints.get("absento", frozenset())
+        substitution = state.constraints.get("eq", frozenset())
+        elemValue = walk(elem, substitution)
+        lstValue = walk(lst, substitution)
+        if elemValue == lstValue:
+            return mzero
+        elif elemValue in lstValue:
+            return mzero
+        else:
+            return unit(State({**state.constraints, **{"absento":constraint | {(elem, lst)}}}))
+    return generate(absentoHelp)
 
 def unify(left, right, substitution):
     """Given a pair of terms determines if they can be equivalent.
@@ -180,21 +223,21 @@ def unify(left, right, substitution):
         If one or the other value is unknown, then updates the substitution with
             the unkown value being set to the known value.
         If they can't be unified then returns False."""
-    left = walk(left, substitution)
-    right = walk(right, substitution)
-    if varq(left) and varq(right) and vareq(left, right):
+    leftValue = walk(left, substitution)
+    rightValue = walk(right, substitution)
+    if varq(leftValue) and varq(rightValue) and vareq(leftValue, rightValue):
         return substitution
-    elif varq(left):
-        return ext_s(left, right, substitution)
-    elif varq(right):
-        return ext_s(right, left, substitution)
-    elif isinstance(left, Link) and isinstance(right, Link):
-        headSub = unify(left.head, right.head, substitution)
+    elif varq(leftValue):
+        return ext_s(leftValue, right, substitution)
+    elif varq(rightValue):
+        return ext_s(rightValue, left, substitution)
+    elif isinstance(leftValue, Link) and isinstance(rightValue, Link):
+        headSub = unify(leftValue.head, rightValue.head, substitution)
         if headSub is not False:
-            return unify(left.tail, right.tail, headSub)
+            return unify(leftValue.tail, rightValue.tail, headSub)
         else:
             return False
-    elif left == right:
+    elif leftValue == rightValue:
         return substitution
     else:
         return False
@@ -208,7 +251,7 @@ def call_fresh(function):
         name = list(signature(function).parameters)[0]  # Gets the names of all of the arguments for 'function'
         new_var = var(count, name)
         goal = function(new_var)
-        newState = State(state.substitution, count + 1)
+        newState = State(state.constraints, count + 1)
         yield from goal(newState)
     return generate(call_fresh_help)
 
@@ -223,7 +266,7 @@ def conj(g1, g2):
     """Take two relations. Determine the result if both are true."""
     def conj_help(state):
         yield from bind(g1, g2)(state)
-    return conj_help
+    return generate(conj_help)
 
 def generate(fun):
     """If `state` is a single state, applies fun to it, if it is a generator,
@@ -241,11 +284,25 @@ def generate(fun):
                     yield from result
         else:
             result = fun(state)
-            if isinstance(result, State):
-                yield result
-            else:
-                yield from result
+            yield from applyConstraints(result)
+#            if isinstance(result, State):
+#                yield applyConstraints(result)
+#            else:
+#                yield from (applyConstraints(resultState) for resultState in result)
     return generate_help
+
+def applyConstraints(state):
+    goal = unit
+    if isinstance(state, State):
+        for constraint in state.constraints:
+            newgoal = eval(constraint)
+            for args in state.constraints[constraint]:
+                goal = bind(goal, newgoal(*args))
+        yield from goal(state)
+    else:
+        for stateFromGen in state:
+            yield from applyConstraints(stateFromGen)
+
 
 def mplus(state_stream1, state_stream2):
     stateStreams = [state_stream1, state_stream2]
@@ -297,4 +354,4 @@ def bind(goal1, goal2):
             stateStreams = newStreams
             newStreams = []
 
-    return generate(bind_help)
+    return bind_help
