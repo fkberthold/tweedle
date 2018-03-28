@@ -42,19 +42,28 @@ class Link(object):
         else:
             self.tail = tail
 
+    def __eq__(self, other):
+        assert isinstance(other, Link)
+        if self.is_empty() and other.is_empty():
+            return True
+        elif self.head == other.head:
+            return self.tail == other.tail
+        else:
+            return False
+
     def __repr__(self):
         if self.is_empty():
             return "()"
         point_to = self
-        str_repr = "(%s" % str(self.head)
+        str_repr = "(%s" % repr(self.head)
         while isinstance(point_to.tail, type(self)):
             point_to = point_to.tail
             str_repr += " "
-            str_repr += "%s" % str(point_to.head)
+            str_repr += "%s" % repr(point_to.head)
         if point_to.tail is None:
             str_repr += ")"
         else:
-            str_repr += " . %s)" % str(point_to.tail)
+            str_repr += " . %s)" % repr(point_to.tail)
         return str_repr
 
     def __contains__(self, elem):
@@ -120,16 +129,17 @@ class State(object):
         self.count = count
         self.constraints = constraints
 
-    def __hash__(self):
-        return hash((self.count, tuple(self.constraints)))
-
     def __eq__(self, other):
         assert isinstance(other, State)
         return self.count == other.count and self.constraints == other.constraints
 
     def __repr__(self):
-#        subs = "\n".join(["  %s: %s" % (repr(key), repr(self.constraints[key])) for key in self.substitution])
-        return "\nCount: %i\nSubstitutions:\n%s" % (self.count, str(self.constraints))
+        constraint_str = ""
+        for constraint in self.constraints:
+            constraint_str += "\t%s:\n" % constraint
+            for substitution in self.constraints[constraint]:
+                constraint_str += "\t\t%s\n" % repr(substitution)
+        return "\nCount: %i\nConstraints:\n%s" % (self.count, str(constraint_str))
 
 def var(c, name=None):
     """Var creates a Term by wrapping an integer in a list"""
