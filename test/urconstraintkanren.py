@@ -84,6 +84,7 @@ class Test_State_Fixtures(unittest.TestCase):
         cls.with_two = State({"eq": {(var(0), 'Dum'), (var(1), 'Dee')}}, 2)
         cls.with_linked = State({"eq": {(var(0), 'Queen'), (var(1), var(0))}}, 2)
 
+class Test_State(Test_State_Fixtures):
     def test_empty_state_is_empty(self):
         self.assertEqual(self.empty, self.empty)
         self.assertEqual(self.empty.constraints, {})
@@ -114,6 +115,30 @@ class Test_State_Fixtures(unittest.TestCase):
     def test_walk_var_missing(self):
         result = walk(var(1), self.with_one.constraints["eq"])
         self.assertEqual(result, var(1))
+
+    def test_extend_substitution(self):
+        substitution_with_dee = ext_s(var(1), 'Dee', self.with_one.constraints["eq"])
+        state_with_dee = State({"eq":substitution_with_dee}, 2)
+        self.assertEqual(state_with_dee, self.with_two)
+
+    def test_zero_is_none(self):
+        self.assertEqual(list(mzero), [])
+
+    def test_unit_returns_state(self):
+        self.assertEqual(list(unit(self.just_alice)), [self.just_alice])
+
+
+class Test_Eq(Test_State_Fixtures):
+    def test_eq_constants(self):
+        new_states = list(eq(3, 3)(self.just_alice))
+        print(new_states)
+        self.assertEqual(len(new_states), 1)
+        self.assertEqual(new_states[0], self.just_alice)
+
+    def test_uneq_constants(self):
+        new_states = list(eq(2, 3)(self.just_alice))
+        self.assertEqual(len(new_states), 0)
+
 
 
 if __name__ == "__main__":

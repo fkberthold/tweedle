@@ -137,8 +137,8 @@ class State(object):
         constraint_str = ""
         for constraint in self.constraints:
             constraint_str += "\t%s:\n" % constraint
-            for substitution in self.constraints[constraint]:
-                constraint_str += "\t\t%s\n" % repr(substitution)
+            for constraint_arguments in self.constraints[constraint]:
+                constraint_str += "\t\t%s\n" % repr(constraint_arguments)
         return "\nCount: %i\nConstraints:\n%s" % (self.count, str(constraint_str))
 
 def var(c, name=None):
