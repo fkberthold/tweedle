@@ -77,7 +77,7 @@ class Link(object):
     def is_empty(self):
         return self.head is None and self.tail is None
 
-def listToLinks(lst):
+def list_to_links(lst):
     """Linked Lists are a neat, elegant data structure...
     And a pain to code by hand.
     @param lst: The python list structure to convert.
@@ -88,9 +88,9 @@ def listToLinks(lst):
         return Link()
     else:
         if isinstance(lst[0], list):
-            return Link(listToLinks(lst[0]), listToLinks(lst[1:]))
+            return Link(list_to_links(lst[0]), list_to_links(lst[1:]))
         else:
-            return Link(lst[0], listToLinks(lst[1:]))
+            return Link(lst[0], list_to_links(lst[1:]))
 
 class LogicVariable(object):
     """This is a minor deviation from how most of the papers handle logic variables.
@@ -127,8 +127,10 @@ class State(object):
     def __init__(self, constraints={}, count=0):
         assert count >= 0
         self.count = count
-        self.constraints = constraints
-
+        self.constraints = {}
+        if constraints:
+            for constraint in constraints:
+                self.constraints[constraint] = frozenset(constraints[constraint])
     def __eq__(self, other):
         assert isinstance(other, State)
         return self.count == other.count and self.constraints == other.constraints
@@ -184,6 +186,31 @@ def unit(state):
     """Don't change anything"""
     yield state
 
+def unify(left, right, substitution):
+    """Given a pair of terms determines if they can be equivalent.
+        If they are both the same established value, returns the substitution.
+        If one or the other value is unknown, then updates the substitution with
+            the unkown value being set to the known value.
+        If they can't be unified then returns False."""
+    leftValue = walk(left, substitution)
+    rightValue = walk(right, substitution)
+    if varq(leftValue) and varq(rightValue) and vareq(leftValue, rightValue):
+        return substitution
+    elif varq(leftValue):
+        return ext_s(leftValue, right, substitution)
+    elif varq(rightValue):
+        return ext_s(rightValue, left, substitution)
+    elif isinstance(leftValue, Link) and isinstance(rightValue, Link):
+        headSub = unify(leftValue.head, rightValue.head, substitution)
+        if headSub is not False:
+            return unify(leftValue.tail, rightValue.tail, headSub)
+        else:
+            return False
+    elif leftValue == rightValue:
+        return substitution
+    else:
+        return False
+
 def eq(left, right):
     """Returns a function that takes a state/count object and returns
         a list of new state/count objects.
@@ -228,31 +255,6 @@ def make_constraint(state, fails, function, *args):
         name = function.__name__
         constraint = state.constraints.get(name, frozenset())
         return unit(State({**state.constraints, **{name:constraint | {args}}}))
-
-def unify(left, right, substitution):
-    """Given a pair of terms determines if they can be equivalent.
-        If they are both the same established value, returns the substitution.
-        If one or the other value is unknown, then updates the substitution with
-            the unkown value being set to the known value.
-        If they can't be unified then returns False."""
-    leftValue = walk(left, substitution)
-    rightValue = walk(right, substitution)
-    if varq(leftValue) and varq(rightValue) and vareq(leftValue, rightValue):
-        return substitution
-    elif varq(leftValue):
-        return ext_s(leftValue, right, substitution)
-    elif varq(rightValue):
-        return ext_s(rightValue, left, substitution)
-    elif isinstance(leftValue, Link) and isinstance(rightValue, Link):
-        headSub = unify(leftValue.head, rightValue.head, substitution)
-        if headSub is not False:
-            return unify(leftValue.tail, rightValue.tail, headSub)
-        else:
-            return False
-    elif leftValue == rightValue:
-        return substitution
-    else:
-        return False
 
 def call_fresh(function):
     """Takes a *-arity function which returns a list of states.  It assigns the given argument
@@ -319,10 +321,14 @@ def mplus(state_stream1, state_stream2):
         for stateStream in stateStreams:
             try:
                 result = stateStream.__next__()
-                if isinstance(result, State):
-                    yield result
-                else:
-                    newStreams.append(result)  # TODO: Can this happen?
+                yield result
+# There was a time when this just wouldn't work without the commented code
+#  below, I'm leaving this here while I continue to explore, but as far as
+#  I can tell, you never end up with a stream returning a stream.
+#                if isinstance(result, State):
+#                    yield result
+#                else:
+#                    newStreams.append(result)  # TODO: Can this happen?
                 newStreams.append(stateStream)
             except StopIteration:
                 pass
@@ -339,10 +345,12 @@ def bind(goal1, goal2):
             for stateStream in stateStreams:
                 try:
                     result = stateStream.__next__()
-                    if isinstance(result, State):
-                        yield result
-                    else:
-                        newStreams.append(result) # TODO: Can this happen?
+                    yield result
+# I don't think this can happen.
+#                    if isinstance(result, State):
+#                        yield result
+#                    else:
+#                        newStreams.append(result) # TODO: Can this happen?
                     newStreams.append(stateStream)
                 except StopIteration:
                         pass
@@ -352,10 +360,12 @@ def bind(goal1, goal2):
             for stateStream in stateStreams:
                 try:
                     result = stateStream.__next__()
-                    if isinstance(result, State):
-                        yield result
-                    else:
-                        newStreams.append(result) # TODO: Can this happen?
+                    yield result
+# I don't think this can happen.
+#                    if isinstance(result, State):
+#                        yield result
+#                    else:
+#                        newStreams.append(result) # TODO: Can this happen?
                     newStreams.append(stateStream)
                 except StopIteration:
                         pass
