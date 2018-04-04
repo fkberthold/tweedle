@@ -223,9 +223,6 @@ class Test_eq(Test_State_Fixtures):
         self.assertEqual(len(new_states), 1)
         self.assertEqual(new_states[0], self.just_alice)
 
-#class Test_neq(Test_State_Fixtures):
-#    def test_
-
 class Test_mplus(Test_State_Fixtures):
     def test_two_states(self):
         stream = list(mplus(unit(self.just_alice), unit(self.with_one)))
@@ -275,6 +272,7 @@ class Test_Bind_Fixtures(unittest.TestCase):
         cls.alice_with_boys = State({"eq": {(var(0), 'Alice'), (var(1), 'Dum'), (var(2), 'Dee')}}, 3)
         cls.alice_with_dee = State({"eq": {(var(0), 'Alice'), (var(1), 'Dee')}}, 3)
         cls.alice_with_dum = State({"eq": {(var(0), 'Alice'), (var(1), 'Dum')}}, 3)
+        cls.alice_with_raven = State({"eq": {(var(0), 'Alice'), (var(1), 'Raven')}}, 3)
 
 class Test_bind(Test_Bind_Fixtures):
     def test_from_empty(self):
@@ -303,9 +301,92 @@ class Test_conj(Test_Bind_Fixtures):
         self.assertEqual(len(streams), 2)
         self.assertEqual(streams, [self.alice_with_dum, self.alice_with_dee])
 
+    def test_nested_with_3_disj(self):
+        streams = list(conj(eq(var(0), 'Alice'), disj(eq(var(1), 'Dum'), disj(eq(var(1), 'Dee'), eq(var(1), 'Raven'))))(self.empty))
+        self.assertEqual(len(streams), 3)
+        self.assertEqual(streams, [self.alice_with_dum, self.alice_with_dee, self.alice_with_raven])
+
+    def test_second_fails(self):
+        streams = list(conj(eq(var(0), 'Dum'), eq(var(1), 'Dum'))(self.with_two))
+        self.assertEqual(len(streams), 0)
+        self.assertEqual(streams, [])
+
+class Test_call_fresh_Fixtures(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.empty = State({}, 0)
+        cls.spoilt = State({"eq": {(var(0, 'rattle'), 'old')}}, 1)
+
+class Test_call_fresh(Test_call_fresh_Fixtures):
+    def test_successful(self):
+        states = list(call_fresh(lambda rattle: eq(rattle, 'old'))(self.empty))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(states, [self.spoilt])
+
+    def test_fails(self):
+        states = list(call_fresh(lambda rattle: conj(eq(rattle, 'old'), eq(rattle, 'new')))(self.empty))
+        self.assertEqual(len(states), 0)
+
+class Test_neq(Test_State_Fixtures):
+    def test_from_empty(self):
+        states = list(call_fresh(lambda rattle: neq(rattle, 'new'))(self.empty))
+        self.assertEqual(len(states), 1)
+        state = states[0]
+        self.assertEqual(len(state.constraints), 1)
+        self.assertEqual(state.constraints['neq'], {(var(0, 'rattle'), 'new')})
+
+    def test_fail_eq_before(self):
+        states = list(call_fresh(lambda rattle: conj(eq(rattle, 'new'), neq(rattle, 'new')))(self.empty))
+        self.assertEqual(len(states), 0)
+
+    def test_fail_eq_after(self):
+        states = list(call_fresh(lambda rattle: conj(neq(rattle, 'new'), eq(rattle, 'new')))(self.empty))
+        self.assertEqual(len(states), 0)
+
+    def test_valid_eq_same_var(self):
+        states = list(call_fresh(lambda rattle: conj(neq(rattle, 'new'), eq(rattle, 'old')))(self.empty))
+        self.assertEqual(len(states), 1)
+        state = states[0]
+        self.assertEqual(len(state.constraints), 2)
+        self.assertEqual(state.constraints['eq'], {(var(0, 'rattle'), 'old')})
+        self.assertEqual(state.constraints['neq'], {(var(0, 'rattle'), 'new')})
+
+class Test_absento(Test_State_Fixtures):
+    def test_from_empty(self):
+        states = list(call_fresh(lambda boys: absento('raven', boys))(self.empty))
+        self.assertEqual(len(states), 1)
+        state = states[0]
+        self.assertEqual(len(state.constraints), 1)
+        self.assertEqual(state.constraints['absento'], {('raven', var(0, 'boys'))})
+
+    def test_fail_scalar_eq_first(self):
+        states = list(call_fresh(lambda girl: conj(eq('alice', girl), absento('alice', girl)))(self.empty))
+        self.assertEqual(len(states), 0)
+
+    def test_fail_scalar_eq_second(self):
+        states = list(call_fresh(lambda girl: conj(absento('alice', girl), eq('alice', girl)))(self.empty))
+        self.assertEqual(len(states), 0)
+
+    def test_fail_list_eq_first(self):
+        lst = list_to_links(['dum', 'dee'])
+        states = list(call_fresh(lambda boys: conj(eq(lst, boys), absento('dee', boys)))(self.empty))
+        self.assertEqual(len(states), 0)
+
+    def test_fail_list_eq_second(self):
+        lst = list_to_links(['dum', 'dee'])
+        states = list(call_fresh(lambda boys: conj(absento('dee', boys), eq(lst, boys)))(self.empty))
+        self.assertEqual(len(states), 0)
+
+    def test_succeed_list_eq(self):
+        lst = list_to_links(['dum', 'dee'])
+        states = list(call_fresh(lambda boys: conj(absento('raven', boys), eq(lst, boys)))(self.empty))
+        self.assertEqual(len(states), 1)
+        state = states[0]
+        self.assertEqual(len(state.constraints), 2)
+        self.assertEqual(state.constraints['absento'], {('raven', var(0, 'boys'))})
+        self.assertEqual(state.constraints['eq'], {(var(0, 'boys'), lst)})
 
 if __name__ == "__main__":
     print("This test suite depends on macros to execute, so can't be")
     print("run independently. Please either run it through `run_tests.py`")
     print("above, or by importing it in a separate file.")
-

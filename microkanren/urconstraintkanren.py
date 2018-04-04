@@ -43,8 +43,9 @@ class Link(object):
             self.tail = tail
 
     def __eq__(self, other):
-        assert isinstance(other, Link)
-        if self.is_empty() and other.is_empty():
+        if not isinstance(other, Link):
+            return False
+        elif self.is_empty() and other.is_empty():
             return True
         elif self.head == other.head:
             return self.tail == other.tail
@@ -65,6 +66,9 @@ class Link(object):
         else:
             str_repr += " . %s)" % repr(point_to.tail)
         return str_repr
+
+    def __hash__(self):
+        return self.head.__hash__() + self.tail.__hash__()
 
     def __contains__(self, elem):
         if self.head == elem:
@@ -223,12 +227,13 @@ def eq(left, right):
         substitution = state.constraints.get("eq", frozenset())
         unified = unify(left, right, substitution)
         if isinstance(unified, frozenset):
-            return unit(State({**state.constraints, **{"eq":unified}}, state.count))
+            return State({**state.constraints, **{"eq":unified}}, state.count)
         else:
             return mzero
     return generate(eqHelp)
 
 def neq(left, right):
+    """Asserts that the `left` value is not equal to the `right` value."""
     def neqHelp(state):
         substitution = state.constraints.get("eq", frozenset())
         leftValue = walk(left, substitution)
@@ -238,12 +243,13 @@ def neq(left, right):
     return generate(neqHelp)
 
 def absento(elem, lst):
+    """Asserts that `elem` is neither equal to `lst`, nor is it an element of `lst`."""
     def absentoHelp(state):
         substitution = state.constraints.get("eq", frozenset())
         elemValue = walk(elem, substitution)
         lstValue = walk(lst, substitution)
         fails = any([elemValue == lstValue,
-                     elemValue in lstValue])
+                     not varq(lstValue) and elemValue in lstValue])
         return make_constraint(state, fails, absento, elem, lst)
     return generate(absentoHelp)
 
