@@ -23,5 +23,27 @@ class Test_Conso(Test_Conso_Fixtures):
         self.assertEqual(len(states), 1)
         self.assertEqual(states, [self.just_alice])
 
+    def test_var_head(self):
+        states = list(call_fresh(lambda head: conso(head, self.empty_link, self.alice_alone))(self.just_alice))
+        self.assertEqual(len(states), 1)
+        state = states[0]
+        self.assertEqual(len(state.constraints['eq']), 2)
+
+    def test_var_tail(self):
+        states = list(call_fresh(lambda tail: conso("Alice", tail, self.alice_alone))(self.just_alice))
+        self.assertEqual(len(states), 1)
+        state = states[0]
+        self.assertEqual(len(state.constraints['eq']), 2)
+
+    def test_var_lst(self):
+        states = list(run_x(lambda lst: conso("Alice", self.empty_link, lst))(self.just_alice))
+        self.assertEqual(len(states), 1)
+        answer = states[0]
+        self.assertEqual(answer, {(var(1, 'lst'), list_to_links(['Alice']))})
+
+    def test_fail(self):
+        answers = list(run_x(lambda name: conj(eq(name, 'Dinah'), conso(name, self.empty_link, self.alice_alone)))(self.just_alice))
+        self.assertEqual(len(answers), 0)
+
 if __name__ == "__main__":
     unittest.main()
