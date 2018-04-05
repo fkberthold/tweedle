@@ -17,5 +17,10 @@ class Test_Conso(Test_Conso_Fixtures):
         self.assertEqual(len(states), 1)
         self.assertEqual(states, [self.empty_state])
 
+    def test_empty_tail(self):
+        states = list(eq(self.empty_link, self.alice_alone.tail)(self.empty_state))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(states, [self.empty_state])
+
 if __name__ == "__main__":
     unittest.main()
