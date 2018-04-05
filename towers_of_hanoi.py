@@ -28,17 +28,13 @@ def disj_x(*args):
         return disj(args[0], disj_x(*args[1:]))
 
 def conso(head, tail, lst):
-    print(head)
-    print(tail)
-    print(lst)
-    print(isinstance(lst, Link))
     if varq(lst):
         return call_fresh_x(lambda new_head, new_tail:
                             conj_x(eq(new_head, head),
                                    eq(new_tail, tail),
                                    eq(lst, Link(new_head, new_tail))))
     elif isinstance(lst, Link):
-        return conj(eq(head, lst.head),
+        return conj_x(eq(head, lst.head),
                      eq(tail, lst.tail))
     else:
         return lambda state: mzero
