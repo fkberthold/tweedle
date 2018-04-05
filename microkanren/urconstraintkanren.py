@@ -43,6 +43,8 @@ class Link(object):
             self.tail = tail
 
     def __eq__(self, other):
+        if other is None and self.is_empty():
+            return True
         if not isinstance(other, Link):
             return False
         elif self.is_empty() and other.is_empty():
