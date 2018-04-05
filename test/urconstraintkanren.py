@@ -38,6 +38,12 @@ class Test_Link(Test_Link_Fixtures):
         nested_expected = Link(self.caucus_racers)
         nested_result = list_to_links([["Dodo", "Mouse", "Duck"]])
 
+    def test_none_is_empty_link(self):
+        self.assertTrue(None == Link())
+
+    def test_empty_link_is_none(self):
+        self.assertTrue(Link() == None)
+
 class Test_LogicVariable_Fixtures(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -206,6 +212,10 @@ class Test_unify(Test_unify_fixtures):
     def test_list_not_matches(self):
         new_substitution = unify(list_to_links(['Dee', 'Raven']), list_to_links(['Dee', var(0)]), self.with_one)
         self.assertEqual(new_substitution, False)
+
+    def test_list_empties(self):
+        new_substitution = unify(Link(), Link().tail, self.empty)
+        self.assertEqual(new_substitution, self.empty)
 
 
 class Test_eq(Test_State_Fixtures):
