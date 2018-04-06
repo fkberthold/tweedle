@@ -10,7 +10,7 @@ class Test_Conso_Fixtures(unittest.TestCase):
         cls.empty_state = State()
         cls.empty_link = Link()
         cls.alice_alone = Link("Alice")
-        cls.just_alice = State({"eq": {(var(0), 'Alice')}}, 1)
+        cls.just_alice = State({"eq": {(var(0), 'Alice')}}, {"eq":eq}, 1)
 
 class Test_Conso(Test_Conso_Fixtures):
     def test_constant_valid(self):
@@ -44,6 +44,13 @@ class Test_Conso(Test_Conso_Fixtures):
     def test_fail(self):
         answers = list(run_x(lambda name: conj(eq(name, 'Dinah'), conso(name, self.empty_link, self.alice_alone)))(self.just_alice))
         self.assertEqual(len(answers), 0)
+
+class Test_Lt(Test_Conso_Fixtures):
+    def test_constant_less(self):
+        states = list(lt(3, 4)(self.just_alice))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(states, [self.just_alice])
+
 
 if __name__ == "__main__":
     unittest.main()

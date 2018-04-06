@@ -69,3 +69,43 @@ def conso(head, tail, lst):
                      eq(tail, lst.tail))
     else:
         return lambda state: mzero
+
+def lt(less, more):
+#    def valsLessThan(val, lessThans):
+#        newValues = set()
+#        values = {lesser for (lesser, greater) in lessThans if greater == val}
+#        checkedValues = set()
+#        while values:
+#            for lesserValue in values:
+#                newValues = newValues | {lesser for (lesser, greater) in lessThans if greater == lesserValue}
+#            checkedValues = checkedValues | values
+#            values = newValues
+#            newValues = set()
+#
+#    def knownLessThan(lessValue, moreValue, lessThans):
+#        if not(varq(lessValue) or varq(moreValue)):
+#            return lessValue < moreValue
+#        elif lessValue == moreValue:
+#            return False
+#        else:
+#
+#    def ltHelp(state):
+#        substitution = state.constraint.get("eq", frozenset())
+#        lessThans = state.constraint.get("lt", frozenset())
+#        lessValue = walk(less, substitution)
+#        valuesLessThanLeast = valsLessThan()
+#        moreValue = walk(more, substitution)
+#
+#        fails = 
+    def ltHelp(state):
+        substitution = state.constraints.get("eq", frozenset())
+        lessValue = walk(less, substitution)
+        moreValue = walk(more, substitution)
+        fails = all([not varq(lessValue),
+                     not varq(moreValue),
+                     not (lessValue < moreValue)]) or lessValue == moreValue
+        return make_constraint(state, fails, lt, less, more)
+    return generate(ltHelp)
+
+def gt(more, less):
+    return lt(less, more)
