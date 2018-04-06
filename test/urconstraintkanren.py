@@ -85,11 +85,11 @@ class Test_State_Fixtures(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.empty = State()
-        cls.just_alice = State({"eq": {(var(0), 'Alice')}}, 1)
-        cls.alice_linked = State({"eq": {(var(0), 'Alice'), (var(1), var(0))}}, 2)
-        cls.two_alices = State({"eq": {(var(0), 'Alice'), (var(1), 'Alice')}}, 2)
-        cls.with_one = State({"eq": {(var(0), 'Dum')}}, 1)
-        cls.with_two = State({"eq": {(var(0), 'Dum'), (var(1), 'Dee')}}, 2)
+        cls.just_alice = State({"eq": {(var(0), 'Alice')}}, {"eq":eq}, 1)
+        cls.alice_linked = State({"eq": {(var(0), 'Alice'), (var(1), var(0))}}, {"eq":eq}, 2)
+        cls.two_alices = State({"eq": {(var(0), 'Alice'), (var(1), 'Alice')}}, {"eq":eq}, 2)
+        cls.with_one = State({"eq": {(var(0), 'Dum')}}, {"eq":eq}, 1)
+        cls.with_two = State({"eq": {(var(0), 'Dum'), (var(1), 'Dee')}}, {"eq":eq}, 2)
 
 class Test_State(Test_State_Fixtures):
     def test_empty_state_is_empty(self):
@@ -127,7 +127,7 @@ class Test_Walk(Test_State_Fixtures):
 class Test_ext_s(Test_State_Fixtures):
     def test_extend_substitution(self):
         substitution_with_dee = ext_s(var(1), 'Dee', self.with_one.constraints["eq"])
-        state_with_dee = State({"eq":substitution_with_dee}, 2)
+        state_with_dee = State({"eq":substitution_with_dee}, {"eq":eq}, 2)
         self.assertEqual(state_with_dee, self.with_two)
 
 class Test_mzero(unittest.TestCase):
@@ -255,9 +255,9 @@ class Test_mplus(Test_State_Fixtures):
 class Test_Disj_Fixtures(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.just_alice = State({"eq": {(var(0), 'Alice')}}, 2)
-        cls.alice_with_dee = State({"eq": {(var(0), 'Alice'), (var(1), 'Dee')}}, 2)
-        cls.alice_with_dum = State({"eq": {(var(0), 'Alice'), (var(1), 'Dum')}}, 2)
+        cls.just_alice = State({"eq": {(var(0), 'Alice')}}, {"eq":eq}, 2)
+        cls.alice_with_dee = State({"eq": {(var(0), 'Alice'), (var(1), 'Dee')}}, {"eq":eq}, 2)
+        cls.alice_with_dum = State({"eq": {(var(0), 'Alice'), (var(1), 'Dum')}}, {"eq":eq}, 2)
 
 class Test_disj(Test_Disj_Fixtures):
     def test_alternate_eqs(self):
@@ -273,16 +273,16 @@ class Test_disj(Test_Disj_Fixtures):
 class Test_Bind_Fixtures(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.empty = State({}, 3)
-        cls.just_alice = State({"eq": {(var(0), 'Alice')}}, 3)
-        cls.alice_linked = State({"eq": {(var(0), 'Alice'), (var(1), var(0))}}, 3)
-        cls.two_alices = State({"eq": {(var(0), 'Alice'), (var(1), 'Alice')}}, 3)
-        cls.with_one = State({"eq": {(var(0), 'Dum')}}, 3)
-        cls.with_two = State({"eq": {(var(0), 'Dum'), (var(1), 'Dee')}}, 3)
-        cls.alice_with_boys = State({"eq": {(var(0), 'Alice'), (var(1), 'Dum'), (var(2), 'Dee')}}, 3)
-        cls.alice_with_dee = State({"eq": {(var(0), 'Alice'), (var(1), 'Dee')}}, 3)
-        cls.alice_with_dum = State({"eq": {(var(0), 'Alice'), (var(1), 'Dum')}}, 3)
-        cls.alice_with_raven = State({"eq": {(var(0), 'Alice'), (var(1), 'Raven')}}, 3)
+        cls.empty = State({}, {"eq":eq}, 3)
+        cls.just_alice = State({"eq": {(var(0), 'Alice')}}, {"eq":eq}, 3)
+        cls.alice_linked = State({"eq": {(var(0), 'Alice'), (var(1), var(0))}}, {"eq":eq}, 3)
+        cls.two_alices = State({"eq": {(var(0), 'Alice'), (var(1), 'Alice')}}, {"eq":eq}, 3)
+        cls.with_one = State({"eq": {(var(0), 'Dum')}}, {"eq":eq}, 3)
+        cls.with_two = State({"eq": {(var(0), 'Dum'), (var(1), 'Dee')}}, {"eq":eq}, 3)
+        cls.alice_with_boys = State({"eq": {(var(0), 'Alice'), (var(1), 'Dum'), (var(2), 'Dee')}}, {"eq":eq}, 3)
+        cls.alice_with_dee = State({"eq": {(var(0), 'Alice'), (var(1), 'Dee')}}, {"eq":eq}, 3)
+        cls.alice_with_dum = State({"eq": {(var(0), 'Alice'), (var(1), 'Dum')}}, {"eq":eq}, 3)
+        cls.alice_with_raven = State({"eq": {(var(0), 'Alice'), (var(1), 'Raven')}}, {"eq":eq}, 3)
 
 class Test_bind(Test_Bind_Fixtures):
     def test_from_empty(self):
@@ -324,8 +324,8 @@ class Test_conj(Test_Bind_Fixtures):
 class Test_call_fresh_Fixtures(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.empty = State({}, 0)
-        cls.spoilt = State({"eq": {(var(0, 'rattle'), 'old')}}, 1)
+        cls.empty = State({}, {"eq":eq}, 0)
+        cls.spoilt = State({"eq": {(var(0, 'rattle'), 'old')}}, {"eq":eq}, 1)
 
 class Test_call_fresh(Test_call_fresh_Fixtures):
     def test_successful(self):

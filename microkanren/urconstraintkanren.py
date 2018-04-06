@@ -130,13 +130,15 @@ class State(object):
     deviation from FEMC.  I chose this route because it makes implementation
     easier to write and understand and because it makes the implementaiton itself
     more flexible."""
-    def __init__(self, constraints={}, count=0):
+    def __init__(self, constraints={}, constraintFunctions={}, count=0):
         assert count >= 0
         self.count = count
         self.constraints = {}
+        self.constraintFunctions = constraintFunctions
         if constraints:
             for constraint in constraints:
                 self.constraints[constraint] = frozenset(constraints[constraint])
+
     def __eq__(self, other):
         assert isinstance(other, State)
         return self.count == other.count and self.constraints == other.constraints
@@ -229,7 +231,7 @@ def eq(left, right):
         substitution = state.constraints.get("eq", frozenset())
         unified = unify(left, right, substitution)
         if isinstance(unified, frozenset):
-            return State({**state.constraints, **{"eq":unified}}, state.count)
+            return State({**state.constraints, **{"eq":unified}}, {**state.constraintFunctions, **{"eq":eq}}, state.count)
         else:
             return mzero
     return generate(eqHelp)
@@ -262,7 +264,7 @@ def make_constraint(state, fails, function, *args):
     else:
         name = function.__name__
         constraint = state.constraints.get(name, frozenset())
-        return unit(State({**state.constraints, **{name:constraint | {args}}}))
+        return unit(State({**state.constraints, **{name:constraint | {args}}}, {**state.constraintFunctions, name:function}, state.count))
 
 def call_fresh(function):
     """Takes a *-arity function which returns a list of states.  It assigns the given argument
@@ -273,7 +275,7 @@ def call_fresh(function):
         name = list(signature(function).parameters)[0]  # Gets the names of all of the arguments for 'function'
         new_var = var(count, name)
         goal = function(new_var)
-        newState = State(state.constraints, count + 1)
+        newState = State(state.constraints, state.constraintFunctions, count + 1)
         yield from goal(newState)
     return generate(call_fresh_help)
 
@@ -313,7 +315,7 @@ def applyConstraints(state):
     goal = unit
     if isinstance(state, State):
         for constraint in state.constraints:
-            newgoal = eval(constraint)
+            newgoal = state.constraintFunctions[constraint]
             for args in state.constraints[constraint]:
                 goal = bind(goal, newgoal(*args))
         yield from goal(state)
