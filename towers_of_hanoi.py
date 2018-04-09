@@ -97,14 +97,63 @@ def lt(less, more):
 #        moreValue = walk(more, substitution)
 #
 #        fails = 
+    def ltWalk(term, lessThans):
+        assert varq(term), "Can't walk a non-variable."
+        terms = set([term])
+        checkedTerms = set()
+        while terms:
+            newTerms = {lesser for (lesser, greater) in lessThans if greater in terms}
+            checkedTerms = checkedTerms | terms
+            terms = newTerms
+        literals = {literal for literal in terms if not varq(literal)}
+        terms = {term for term in terms if varq(term)}
+        leastLiteral = min(literals) if literals else None
+        return (leastLiteral, terms)
+
+    def mtWalk(term, lessThans):
+        assert varq(term), "Can't walk a non-variable."
+        terms = set([term])
+        checkedTerms = set()
+        while terms:
+            newTerms = {greater for (lesser, greater) in lessThans if lesser in terms}
+            checkedTerms = checkedTerms | terms
+            terms = newTerms
+        literals = {literal for literal in terms if not varq(literal)}
+        terms = {term for term in terms if varq(term)}
+        mostLiteral = max(literals) if literals else None
+        return terms
+
     def ltHelp(state):
         substitution = state.constraints.get("eq", frozenset())
         lessValue = walk(less, substitution)
         moreValue = walk(more, substitution)
-        fails = all([not varq(lessValue),
-                     not varq(moreValue),
-                     not (lessValue < moreValue)]) or lessValue == moreValue
-        return make_constraint(state, fails, lt, less, more)
+        if not(varq(lessValue) or varq(lessValue)):
+            if lessValue < moreValue:
+                return state
+            else:
+                return mzero
+        lessThans = state.constraints.get("lt", frozenset())
+        if varq(lessValue):
+            (leastLiteral, leastSet) = ltWalk(lessValue, lessThans)
+            if not varq(moreValue):
+                if moreValue <= leastLiteral:
+                    return make_constraint(state, False, lt, less, more)
+                else:
+                    return mzero
+            else:
+                if moreValue in leastSet:
+                    return mzero
+        if varq(moreValue):
+            (mostLiteral, mostSet) = mtWalk(moreValue, lessThans)
+            if not varq(lessValue):
+                if lessValue >= mostLiteral:
+                    return make_constraint(state, False, lt, less, more)
+                else:
+                    return mzero
+            else:
+                if lessValue in mostSet:
+                    return mzero
+        return make_constraint(state, False, lt, less, more)
     return generate(ltHelp)
 
 def gt(more, less):

@@ -51,6 +51,10 @@ class Test_Lt(Test_Conso_Fixtures):
         self.assertEqual(len(states), 1)
         self.assertEqual(states, [self.just_alice])
 
+    def test_constant_not_less(self):
+        states = list(lt(4, 3)(self.just_alice))
+        self.assertEqual(len(states), 0)
+
 
 if __name__ == "__main__":
     unittest.main()
