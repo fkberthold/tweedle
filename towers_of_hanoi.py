@@ -71,32 +71,6 @@ def conso(head, tail, lst):
         return lambda state: mzero
 
 def lt(less, more):
-#    def valsLessThan(val, lessThans):
-#        newValues = set()
-#        values = {lesser for (lesser, greater) in lessThans if greater == val}
-#        checkedValues = set()
-#        while values:
-#            for lesserValue in values:
-#                newValues = newValues | {lesser for (lesser, greater) in lessThans if greater == lesserValue}
-#            checkedValues = checkedValues | values
-#            values = newValues
-#            newValues = set()
-#
-#    def knownLessThan(lessValue, moreValue, lessThans):
-#        if not(varq(lessValue) or varq(moreValue)):
-#            return lessValue < moreValue
-#        elif lessValue == moreValue:
-#            return False
-#        else:
-#
-#    def ltHelp(state):
-#        substitution = state.constraint.get("eq", frozenset())
-#        lessThans = state.constraint.get("lt", frozenset())
-#        lessValue = walk(less, substitution)
-#        valuesLessThanLeast = valsLessThan()
-#        moreValue = walk(more, substitution)
-#
-#        fails = 
     def ltWalk(term, lessThans):
         assert varq(term), "Can't walk a non-variable."
         terms = set([term])
@@ -105,8 +79,8 @@ def lt(less, more):
             newTerms = {lesser for (lesser, greater) in lessThans if greater in terms}
             checkedTerms = checkedTerms | terms
             terms = newTerms
-        literals = {literal for literal in terms if not varq(literal)}
-        terms = {term for term in terms if varq(term)}
+        literals = {literal for literal in checkedTerms if not varq(literal)}
+        terms = {term for term in checkedTerms if varq(term)}
         leastLiteral = min(literals) if literals else None
         return (leastLiteral, terms)
 
@@ -118,8 +92,8 @@ def lt(less, more):
             newTerms = {greater for (lesser, greater) in lessThans if lesser in terms}
             checkedTerms = checkedTerms | terms
             terms = newTerms
-        literals = {literal for literal in terms if not varq(literal)}
-        terms = {term for term in terms if varq(term)}
+        literals = {literal for literal in checkedTerms if not varq(literal)}
+        terms = {term for term in checkedTerms if varq(term)}
         mostLiteral = max(literals) if literals else None
         return (mostLiteral, terms)
 
@@ -136,7 +110,7 @@ def lt(less, more):
         if varq(lessValue):
             (leastLiteral, leastSet) = ltWalk(lessValue, lessThans)
             if not varq(moreValue) and leastLiteral is not None:
-                if moreValue <= leastLiteral:
+                if leastLiteral < moreValue:
                     return make_constraint(state, False, lt, less, more)
                 else:
                     return mzero
@@ -146,7 +120,7 @@ def lt(less, more):
         if varq(moreValue):
             (mostLiteral, mostSet) = mtWalk(moreValue, lessThans)
             if not varq(lessValue) and mostLiteral is not None:
-                if lessValue >= mostLiteral:
+                if lessValue < mostLiteral:
                     return make_constraint(state, False, lt, less, more)
                 else:
                     return mzero

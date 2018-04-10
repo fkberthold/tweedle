@@ -70,6 +70,14 @@ class Test_Lt(Test_Conso_Fixtures):
         self.assertEqual(len(states), 1)
         self.assertEqual(len(states[0].constraints['lt']), 1)
 
+    def test_less_chain_succeed(self):
+        states = list(call_fresh(lambda tarts: conj(lt(tarts, 7), lt(3, tarts)))(self.empty_state))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(len(states[0].constraints['lt']), 2)
+
+    def test_less_chain_fail(self):
+        states = list(call_fresh(lambda x: conj(lt(x, 3), lt(4, x)))(self.empty_state))
+        self.assertEqual(len(states), 0)
 
 if __name__ == "__main__":
     unittest.main()
