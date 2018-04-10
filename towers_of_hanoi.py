@@ -121,13 +121,13 @@ def lt(less, more):
         literals = {literal for literal in terms if not varq(literal)}
         terms = {term for term in terms if varq(term)}
         mostLiteral = max(literals) if literals else None
-        return terms
+        return (mostLiteral, terms)
 
     def ltHelp(state):
         substitution = state.constraints.get("eq", frozenset())
         lessValue = walk(less, substitution)
         moreValue = walk(more, substitution)
-        if not(varq(lessValue) or varq(lessValue)):
+        if not(varq(lessValue) or varq(moreValue)):
             if lessValue < moreValue:
                 return state
             else:
@@ -135,7 +135,7 @@ def lt(less, more):
         lessThans = state.constraints.get("lt", frozenset())
         if varq(lessValue):
             (leastLiteral, leastSet) = ltWalk(lessValue, lessThans)
-            if not varq(moreValue):
+            if not varq(moreValue) and leastLiteral is not None:
                 if moreValue <= leastLiteral:
                     return make_constraint(state, False, lt, less, more)
                 else:
@@ -145,7 +145,7 @@ def lt(less, more):
                     return mzero
         if varq(moreValue):
             (mostLiteral, mostSet) = mtWalk(moreValue, lessThans)
-            if not varq(lessValue):
+            if not varq(lessValue) and mostLiteral is not None:
                 if lessValue >= mostLiteral:
                     return make_constraint(state, False, lt, less, more)
                 else:

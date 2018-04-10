@@ -55,6 +55,21 @@ class Test_Lt(Test_Conso_Fixtures):
         states = list(lt(4, 3)(self.just_alice))
         self.assertEqual(len(states), 0)
 
+    def test_basic_var_less(self):
+        states = list(call_fresh(lambda x: lt(x, 4))(self.empty_state))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(len(states[0].constraints['lt']), 1)
+
+    def test_basic_var_more(self):
+        states = list(call_fresh(lambda x: lt(3, x))(self.empty_state))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(len(states[0].constraints['lt']), 1)
+
+    def test_basic_vars(self):
+        states = list(call_fresh_x(lambda x, y: lt(x, y))(self.empty_state))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(len(states[0].constraints['lt']), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
