@@ -3,15 +3,15 @@ from inspect import signature
 
 """UrConstraintKanren
 
-The following is intended to help both myself and others understand micro-kanren with
-constraints.
+The following is intended to help both myself and others understand micro-kanren
+with constraints.
 
-While the overall goal of this project is to make a fully Pythonic Kanren, for the
-purposes of this file the emphasis is clarity, particularly for those who are using
-it to supliment reading papers on the subject.
+While the overall goal of this project is to make a fully Pythonic Kanren, for
+the purposes of this file the emphasis is clarity, particularly for those who
+are using it to supliment reading papers on the subject.
 
-The papers I've found to be the most illuminating and which have directly impacted
-the design here are:
+The papers I've found to be the most illuminating and which have directly
+impacted the design here are:
 
 A Framework for Extending microKanren with Constraints
     https://arxiv.org/pdf/1701.00633
@@ -30,12 +30,26 @@ class Link(object):
 
     But. One of the interesting things you can do in micro-kanren is represent
     cases where you know things about the front of a list and have no idea how
-    long the list is.  For example, I could say that I know for the list `l` that
-    `l[0] == 'cake'`, and that is all I know about the list. It may have 100 values,
-    or `'cake'` may be all there is. This is very hard to represent using Python lists,
-    but in this style of linked list can be represented like this: `Link('cake', LogicVariable(0))`
+    long the list is.  For example, I could say that I know for the list `l`
+    that `l[0] == 'cake'`, and that is all I know about the list. It may have
+    100 values, or `'cake'` may be all there is. This is very hard to represent
+    using Python lists, but in this style of linked list can be represented like
+    this: `Link('cake', LogicVariable(0))`
     """
     def __init__(self, head=None, tail=None):
+        """For practical purposes this is a traditional value and pointer style
+        of linked list. The head is the value the tail is the pointer.  If the
+        tail is set to None, then it's a single value list, if the head is set
+        to None, then it's an empty list. This means that `None` isn't on the
+        list of values we can use in this logic system.
+
+        Because we're implementing in the style of Lisp lists, `tail` doesn't
+        have to be a link, but can be another value, creating a `dotted pair`,
+        similar to a tuple in Python.
+
+        @param head: The value for the link.
+        @param tail: The rest of the list, if any, or another value.
+        """
         self.head = head
         if isinstance(tail, type(self)) and tail.is_empty():
             self.tail = None
@@ -43,6 +57,17 @@ class Link(object):
             self.tail = tail
 
     def __eq__(self, other):
+        """Equality here tests first for if both qualify as empty lists. As
+        mentioned above python's None is being treated as equivalent to an empty
+        list, the same way scheme does with null.
+
+        By Python convention if the type of `other` is different from `self`,
+        then it's just not equal, as opposed to being a type error like it is in
+        other languages.
+
+        @param other: The value being compared for equality.
+        @return: True if both are equal, false otherwise.
+        """
         if other is None and self.is_empty():
             return True
         if not isinstance(other, Link):
@@ -55,6 +80,13 @@ class Link(object):
             return False
 
     def __repr__(self):
+        """I want to make it crystal clear to anyone using this code when
+        they've encountered this style of list over Python lists, so the
+        representation is in the Lisp style.
+
+        @return: A string in the form of `(<value1> <value2> <value3>)` or
+        `(<value1> . <value2>)` for dotted pairs.
+        """
         if self.is_empty():
             return "()"
         point_to = self
@@ -70,9 +102,31 @@ class Link(object):
         return str_repr
 
     def __hash__(self):
+        """In order to use a list as a dictionary key, it needs to have a hash
+        value. Just adding the hashes of head and tail is easy to implement and
+        understand.
+
+        @return: A reasonably unique hash.
+        """
         return self.head.__hash__() + self.tail.__hash__()
 
     def __contains__(self, elem):
+        """Returns true if `elem` is part of the list that this link is the
+        front of.
+
+        It could be argued that, if `elem` is a Link then you would check if:
+            * head == elem
+            * tail == elem
+            * elem in tail
+
+        That read is valid, but feels counter intuitive if you primarly think of
+        Link as a way ot represent lists.
+
+        @param elem: A value that may or may not be equal to the head of this
+        Link, the tail of this Link (if it's a dotted pair) or in the tail of
+        this Link.
+        @return: True if this Link contains `elem`, false otherwise.
+        """
         if self.head == elem:
             return True
         elif isinstance(self.tail, type(self)):
@@ -81,11 +135,17 @@ class Link(object):
             return self.tail == elem
 
     def is_empty(self):
+        """Check if the list is `empty` which means both the `head` and `tail`
+        are `None`.
+
+        @return: True if empty, False otherwise.
+        """
         return self.head is None and self.tail is None
 
 def list_to_links(lst):
     """Linked Lists are a neat, elegant data structure...
     And a pain to code by hand.
+
     @param lst: The python list structure to convert.
     @return: A linked list converted from the `lst`.`
     """
@@ -99,43 +159,105 @@ def list_to_links(lst):
             return Link(lst[0], list_to_links(lst[1:]))
 
 class LogicVariable(object):
-    """This is a minor deviation from how most of the papers handle logic variables.
-    The various scheme dialects aren't big on classes, so they chose instead to just
-    represent logic variables as integers.
+    """This is a minor deviation from how most of the papers handle
+    logicvariables. The various scheme dialects aren't big on classes, so they
+    chose instead to just represent logic variables as integers.
+
     This is terrible for clarity, and makes it hard to attach other data to your
-    variable, like a name.
+    variable.
+
+    By making this a class you'll be able to see the name that was attached to,
+    I promise this will make exploration easier and more interesting.
     """
     def __init__(self, identifier, name=None):
+        """Logic Variables should only be instantiated using `call_fresh` in
+        general usage.  If you instantiate one by hand you're asking for
+        identifier conflict problems in your code and only have yourself to
+        blame.
+
+        @param: The unique identifier for this variable, in principle it could
+        be any type. In practice it will be a positive integer or zero.
+        @param: The name can be any string, when set in call_fresh it will
+        be the same as the name of the argument it's taken from.
+        """
         self.id = identifier
         self.name = name
 
     def __eq__(self, other):
+        """Since the value of a LogicVariable is based on the State that
+        contains, it and is not inherint to the variable itself, equality
+        here is only by identifier, not by the value (if any) that it
+        points to.
+
+        @param other: The variable being compared for equality.
+        @return: True if the id's are the same, False if they aren't or `other`
+        isn't a LogicVariable.
+        """
         return isinstance(other, LogicVariable) and self.id == other.id
 
     def __repr__(self):
-        """Why are LogicVariables preceded by `+`? First because I wanted to make it
-        clear when something was a LogicVariable and not just an integer. Second the
-        `+` unary operator in Python is how we're creating LogicVariables in the main
-        code base."""
+        """`var` is the function generally used to instantiate a LogicVariable
+        in other implementations, so for clarity I've used it here to represent
+        the variable itself.
+
+        @return: A string representing the LogicVariable, with `name` if
+        present.
+        """
         if self.name:
             return "var(%i, '%s')" % (self.id, self.name)
         else:
             return "var(%i)" % self.id
 
     def __hash__(self):
+        """Given that the `id` is supposed to be unique in any context this is
+        used, it's the obvious choise for a hash.
+
+        @return: The ID as a unique hash.
+        """
         return self.id
 
 class State(object):
-    """That the list of constraints is not pre-baked into the state is a key
-    deviation from FEMC.  I chose this route because it makes implementation
-    easier to write and understand and because it makes the implementaiton itself
-    more flexible."""
+    """This contains the total state of a logic system at any point in time.
+    This will consist of:
+        constraints: A dictionary of constraints by name, each of which will
+           contain the values to be tested by the constraint.
+        constraintFunctions: This is just a bit redundant, it contains a
+           dictionary of constraint functions, also by name. It's matched with
+           `constraints` as the function to be executed on each of the set
+           of arguments.
+        count: Tracks the number of new LogicVariables that have been
+           instantiated in this logic system and is used when selecting
+           an identifier for new LogicVariables when instantiated.
+
+    One major deviation in this module from FEMC is I've chosen not to pre-bake
+    any kind of constraint into the State, they are discovered at the time that
+    goals are processed.  I chose this because it makes it relatively easy to
+    understand how new constraints are added.
+    """
     def __init__(self, constraints={}, constraintFunctions={}, count=0):
+        """In most of your usage, you'll instantiate State as empty, but will
+        have to worry about adding new constraints and functions if you write
+        a custom constraint. Fortunately we have functions further down to make
+        that easier.
+
+        @param constraints: A dictionary containing constraint names, each of
+        which points to a frozenset of arguments to be passed to the constraint
+        to determine if the constraint is met.
+            eg {"eq":frozenset({(var(0, 'rabbit'), 'white'),
+                                (var(1, 'queen'), 'red')})
+        @param constraintFunctions: This allows us to add new kinds of
+        constraint to the logic system on the fly. It will be a dictionary with
+        the name of the constraint as key and the function as value.
+            eg {'eq': <function <lambda> at 0x7f2529f7c950>}
+        @param count: The number of LogicVariables that have been instantiated
+        in the State.
+        """
         assert count >= 0
         self.count = count
         self.constraints = {}
         self.constraintFunctions = constraintFunctions
         if constraints:
+            self.constraints = {constraint:frozenset(constraint)}
             for constraint in constraints:
                 self.constraints[constraint] = frozenset(constraints[constraint])
 
@@ -333,13 +455,6 @@ def mplus(state_stream1, state_stream2):
             try:
                 result = stateStream.__next__()
                 yield result
-# There was a time when this just wouldn't work without the commented code
-#  below, I'm leaving this here while I continue to explore, but as far as
-#  I can tell, you never end up with a stream returning a stream.
-#                if isinstance(result, State):
-#                    yield result
-#                else:
-#                    newStreams.append(result)  # TODO: Can this happen?
                 newStreams.append(stateStream)
             except StopIteration:
                 pass
@@ -357,11 +472,6 @@ def bind(goal1, goal2):
                 try:
                     result = stateStream.__next__()
                     yield result
-# I don't think this can happen.
-#                    if isinstance(result, State):
-#                        yield result
-#                    else:
-#                        newStreams.append(result) # TODO: Can this happen?
                     newStreams.append(stateStream)
                 except StopIteration:
                         pass
@@ -372,11 +482,6 @@ def bind(goal1, goal2):
                 try:
                     result = stateStream.__next__()
                     yield result
-# I don't think this can happen.
-#                    if isinstance(result, State):
-#                        yield result
-#                    else:
-#                        newStreams.append(result) # TODO: Can this happen?
                     newStreams.append(stateStream)
                 except StopIteration:
                         pass
