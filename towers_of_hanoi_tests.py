@@ -56,17 +56,17 @@ class Test_Lt(Test_Conso_Fixtures):
         self.assertEqual(len(states), 0)
 
     def test_basic_var_less(self):
-        states = list(call_fresh(lambda x: lt(x, 4))(self.empty_state))
+        states = list(call_fresh(lambda tarts: lt(tarts, 4))(self.empty_state))
         self.assertEqual(len(states), 1)
         self.assertEqual(len(states[0].constraints['lt']), 1)
 
     def test_basic_var_more(self):
-        states = list(call_fresh(lambda x: lt(3, x))(self.empty_state))
+        states = list(call_fresh(lambda tarts: lt(3, tarts))(self.empty_state))
         self.assertEqual(len(states), 1)
         self.assertEqual(len(states[0].constraints['lt']), 1)
 
     def test_basic_vars(self):
-        states = list(call_fresh_x(lambda x, y: lt(x, y))(self.empty_state))
+        states = list(call_fresh_x(lambda tarts, oysters: lt(tarts, oysters))(self.empty_state))
         self.assertEqual(len(states), 1)
         self.assertEqual(len(states[0].constraints['lt']), 1)
 
@@ -76,8 +76,39 @@ class Test_Lt(Test_Conso_Fixtures):
         self.assertEqual(len(states[0].constraints['lt']), 2)
 
     def test_less_chain_fail(self):
-        states = list(call_fresh(lambda x: conj(lt(x, 3), lt(4, x)))(self.empty_state))
+        states = list(call_fresh(lambda tarts: conj(lt(tarts, 3), lt(4, tarts)))(self.empty_state))
         self.assertEqual(len(states), 0)
+
+    def test_more_chain_succeed(self):
+        states = list(call_fresh(lambda tarts: conj(lt(3, tarts), lt(tarts, 7)))(self.empty_state))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(len(states[0].constraints['lt']), 2)
+
+    def test_more_chain_fail(self):
+        states = list(call_fresh(lambda tarts: conj(lt(4, tarts), lt(tarts, 3)))(self.empty_state))
+        self.assertEqual(len(states), 0)
+
+    def test_eq_after_succeed(self):
+        states = list(call_fresh(lambda tarts: conj(lt(3, tarts), eq(tarts, 4)))(self.empty_state))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(len(states[0].constraints['lt']), 1)
+
+    def test_eq_after_fail(self):
+        states = list(call_fresh(lambda tarts: conj(lt(3, tarts), eq(tarts, 3)))(self.empty_state))
+        self.assertEqual(len(states), 0)
+
+    def test_bad_loop(self):
+        states = list(call_fresh_x(lambda tarts, oysters: conj(lt(tarts, oysters), eq(oysters, tarts)))(self.empty_state))
+        self.assertEqual(len(states), 0)
+
+    def test_single_pinned_fail(self):
+        states = list(call_fresh(lambda tarts: conj(lt(3, tarts), lt(tarts, 4)))(self.empty_state))
+        self.assertEqual(len(states), 0)
+
+    def test_double_pinned_fail(self):
+        states = list(call_fresh_x(lambda tarts, oysters: conj_x(lt(3, tarts), lt(tarts, oysters), lt(oysters, 5)))(self.empty_state))
+        self.assertEqual(len(states), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

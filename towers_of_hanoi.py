@@ -75,27 +75,37 @@ def lt(less, more):
         assert varq(term), "Can't walk a non-variable."
         terms = set([term])
         checkedTerms = set()
+        mostPlus = 1 # When calculating how much more anything else must be to be
+                     #  valid, each iteration deeper we go in terms, then the amount
+                     #  added must be one larger too.
         while terms:
-            newTerms = {lesser for (lesser, greater) in lessThans if greater in terms}
+            newTerms = {lesser if varq(lesser) else lesser + mostPlus for (lesser, greater) in lessThans if greater in terms}
             checkedTerms = checkedTerms | terms
             terms = newTerms
+            mostPlus += 1
         literals = {literal for literal in checkedTerms if not varq(literal)}
         terms = {term for term in checkedTerms if varq(term)}
-        leastLiteral = min(literals) if literals else None
-        return (leastLiteral, terms)
+        # You want the maximum literal value because any value that is more than term
+        #  must by definition be larger than the highest number it could be greater than
+        #  plus one.
+        mostLiteral = max(literals) if literals else None
+        return (mostLiteral, terms)
 
     def mtWalk(term, lessThans):
         assert varq(term), "Can't walk a non-variable."
         terms = set([term])
         checkedTerms = set()
+        leastMinus = 1
         while terms:
-            newTerms = {greater for (lesser, greater) in lessThans if lesser in terms}
+            newTerms = {greater if varq(greater) else greater - leastMinus for (lesser, greater) in lessThans if lesser in terms}
             checkedTerms = checkedTerms | terms
             terms = newTerms
+            leastMinus += 1
         literals = {literal for literal in checkedTerms if not varq(literal)}
         terms = {term for term in checkedTerms if varq(term)}
-        mostLiteral = max(literals) if literals else None
-        return (mostLiteral, terms)
+        # See above for why least
+        leastLiteral = min(literals) if literals else None
+        return (leastLiteral, terms)
 
     def ltHelp(state):
         substitution = state.constraints.get("eq", frozenset())
@@ -108,9 +118,9 @@ def lt(less, more):
                 return mzero
         lessThans = state.constraints.get("lt", frozenset())
         if varq(lessValue):
-            (leastLiteral, leastSet) = ltWalk(lessValue, lessThans)
-            if not varq(moreValue) and leastLiteral is not None:
-                if leastLiteral < moreValue:
+            (mostLiteral, leastSet) = ltWalk(lessValue, lessThans)
+            if not varq(moreValue) and mostLiteral is not None:
+                if mostLiteral < moreValue:
                     return make_constraint(state, False, lt, less, more)
                 else:
                     return mzero
@@ -118,9 +128,9 @@ def lt(less, more):
                 if moreValue in leastSet:
                     return mzero
         if varq(moreValue):
-            (mostLiteral, mostSet) = mtWalk(moreValue, lessThans)
-            if not varq(lessValue) and mostLiteral is not None:
-                if lessValue < mostLiteral:
+            (leastLiteral, mostSet) = mtWalk(moreValue, lessThans)
+            if not varq(lessValue) and leastLiteral is not None:
+                if lessValue < leastLiteral:
                     return make_constraint(state, False, lt, less, more)
                 else:
                     return mzero
