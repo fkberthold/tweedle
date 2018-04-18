@@ -3,43 +3,50 @@ from microkanren.urconstraintkanren import *
 def deep_walk(term, substitution):
     value = walk(term, substitution)
     if isinstance(value, Link):
-        return Link(deep_walk(value.head, substitution), deep_walk(value.tail, substitution))
+        return Link(deep_walk(value.head, substitution),
+                    deep_walk(value.tail, substitution))
     else:
         return value
 
 def call_fresh_x(f):
-    """Takes a *-arity function which returns a list of states.  It assigns the given argument
-        an unassigned term.  It then returns a function that takes a state and returns a list of
-        states."""
+    """Takes a *-arity function which returns a list of states.  It assigns the
+    given argument an unassigned term.  It then returns a function that takes a
+    state and returns a list of states."""
     def call_fresh_help(state):
         c = state.count
         params = signature(f).parameters
         arg_count = len(params)
         new_c = c + arg_count
-        new_vars = [var(number, name) for (number, name) in zip(range(c, new_c), params)]
+        ids_and_params = zip(range(c, new_c), params)
+        new_vars = [var(number, name) for (number, name) in ids_and_params]
         fun = f(*new_vars)
         newState = State(state.constraints, state.constraintFunctions, new_c)
         yield from fun(newState)
     return generate(call_fresh_help)
 
 def run_x(f):
-    """Takes a *-arity function which returns a list of states.  It assigns the given argument
-        an unassigned term.  It then returns a function that takes a state and returns a list of
-        states."""
+    """Takes a *-arity function which returns a list of states.  It assigns the
+    given argument an unassigned term.  It then returns a function that takes a
+    state and returns a list of states."""
     def call_fresh_help(state):
         c = state.count
         params = signature(f).parameters
         arg_count = len(params)
         new_c = c + arg_count
-        new_vars = [var(number, name) for (number, name) in zip(range(c, new_c), params)]
+        ids_and_params = zip(range(c, new_c), params)
+        new_vars = [var(number, name) for (number, name) in ids_and_params]
         fun = f(*new_vars)
         newState = State(state.constraints, state.constraintFunctions, new_c)
         state_generator = fun(newState)
         for gen_state in state_generator:
             constraints = gen_state.constraints
+            constraintFunctions = gen_state.constraintFunctions
+            count = gen_state.count
             if 'eq' in constraints:
-                new_constraints = {**constraints, 'eq':frozenset({(var, deep_walk(var, constraints['eq'])) for var in new_vars})}
-                yield State(new_constraints, gen_state.constraintFunctions, gen_state.count)
+                old_eq = constraints['eq']
+                new_eq = {(var, deep_walk(var, old_eq)) for var in new_vars}
+                new_constraints = {**constraints, 'eq': frozenset(new_eq)}
+                yield State(new_constraints, constraintFunctions, count)
     def run_x_help(state):
         generator = generate(call_fresh_help)(state)
         for new_state in generator:
@@ -58,6 +65,12 @@ def disj_x(*args):
     else:
         return disj(args[0], disj_x(*args[1:]))
 
+def emptyo(lst):
+    return eq(lst, Link())
+
+def not_emptyo(lst):
+    return neq(lst, Link())
+
 def conso(head, tail, lst):
     if varq(lst):
         return call_fresh_x(lambda new_head, new_tail:
@@ -75,19 +88,20 @@ def lt(less, more):
         assert varq(term), "Can't walk a non-variable."
         terms = set([term])
         checkedTerms = set()
-        mostPlus = 1 # When calculating how much more anything else must be to be
-                     #  valid, each iteration deeper we go in terms, then the amount
-                     #  added must be one larger too.
+        mostPlus = 1 # When calculating how much more anything else must be to
+                     #  be valid, each iteration deeper we go in terms, then the
+                     #  amount added must be one larger too.
         while terms:
-            newTerms = {lesser if varq(lesser) else lesser + mostPlus for (lesser, greater) in lessThans if greater in terms}
+            newTerms = {lesser if varq(lesser) else lesser + mostPlus for
+                        (lesser, greater) in lessThans if greater in terms}
             checkedTerms = checkedTerms | terms
             terms = newTerms
             mostPlus += 1
         literals = {literal for literal in checkedTerms if not varq(literal)}
         terms = {term for term in checkedTerms if varq(term)}
-        # You want the maximum literal value because any value that is more than term
-        #  must by definition be larger than the highest number it could be greater than
-        #  plus one.
+        # You want the maximum literal value because any value that is more than
+        #  term must by definition be larger than the highest number it could be
+        #  greater than plus one.
         mostLiteral = max(literals) if literals else None
         return (mostLiteral, terms)
 
@@ -97,7 +111,8 @@ def lt(less, more):
         checkedTerms = set()
         leastMinus = 1
         while terms:
-            newTerms = {greater if varq(greater) else greater - leastMinus for (lesser, greater) in lessThans if lesser in terms}
+            newTerms = {greater if varq(greater) else greater - leastMinus for
+                        (lesser, greater) in lessThans if lesser in terms}
             checkedTerms = checkedTerms | terms
             terms = newTerms
             leastMinus += 1
@@ -142,3 +157,12 @@ def lt(less, more):
 
 def gt(more, less):
     return lt(less, more)
+
+
+def appendo(first, second, combined):
+    return disj_x(conj_x(emptyo(first), eq(second, combined)),
+                  conj_x(emptyo(second), eq(first,combined)),
+                  call_fresh_x(lambda firstHead, firstTail, combinedTail:
+                      conj_x(conso(firstHead, firstTail, first),
+                             conso(firstHead, combinedTail, combined),
+                             appendo(firstTail, second, combinedTail))))

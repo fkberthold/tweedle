@@ -109,6 +109,49 @@ class Test_Lt(Test_Conso_Fixtures):
         states = list(call_fresh_x(lambda tarts, oysters: conj_x(lt(3, tarts), lt(tarts, oysters), lt(oysters, 5)))(self.empty_state))
         self.assertEqual(len(states), 0)
 
+class Test_Emptyo(Test_Conso_Fixtures):
+    def test_constant_empty(self):
+        states = list(emptyo(Link())(self.empty_state))
+        self.assertEqual(len(states), 1)
+
+    def test_constant_not_empty(self):
+        states = list(emptyo(Link('white knight'))(self.empty_state))
+        self.assertEqual(len(states), 0)
+
+class Test_Append(Test_Conso_Fixtures):
+    def test_constant_all_empty(self):
+        states = list(appendo(Link(), Link(), Link())(self.empty_state))
+        print(states)
+        self.assertEqual(len(states), 1)
+
+    def test_first_not_empty(self):
+        states = list(appendo(Link('alice'), Link(), Link('alice'))(self.empty_state))
+        self.assertEqual(len(states), 1)
+
+    def test_second_not_empty(self):
+        states = list(appendo(Link(), Link('alice'), Link('alice'))(self.empty_state))
+        self.assertEqual(len(states), 1)
+
+    def test_none_empty(self):
+        states = list(appendo(Link('dee'), Link('dum'), list_to_links(['dee', 'dum']))(self.empty_state))
+        self.assertEqual(len(states), 1)
+
+    def test_first_not_empty_to_empty_fails(self):
+        states = list(appendo(Link('alice'), Link(), Link())(self.empty_state))
+        self.assertEqual(len(states), 0)
+
+    def test_second_not_empty_to_empty_fails(self):
+        states = list(appendo(Link(), Link('alice'), Link())(self.empty_state))
+        self.assertEqual(len(states), 0)
+
+    def test_none_empty_to_first_fails(self):
+        states = list(appendo(Link('dee'), Link('dum'), Link('dee'))(self.empty_state))
+        self.assertEqual(len(states), 0)
+
+    def test_none_empty_to_second_fails(self):
+        states = list(appendo(Link('dee'), Link('dum'), Link('dum'))(self.empty_state))
+        self.assertEqual(len(states), 0)
+
 
 if __name__ == "__main__":
     unittest.main()
