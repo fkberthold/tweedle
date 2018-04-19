@@ -158,11 +158,39 @@ def lt(less, more):
 def gt(more, less):
     return lt(less, more)
 
-
 def appendo(first, second, combined):
-    return disj_x(conj_x(emptyo(first), eq(second, combined)),
-                  conj_x(emptyo(second), eq(first,combined)),
+    return disj_x(conj_x(emptyo(first),
+                        eq(second, combined)),
+                  conj_x(not_emptyo(first),
+                         emptyo(second),
+                         eq(first,combined)),
                   call_fresh_x(lambda firstHead, firstTail, combinedTail:
-                      conj_x(conso(firstHead, firstTail, first),
+                      conj_x(not_emptyo(first),
+                             not_emptyo(second),
+                             conso(firstHead, firstTail, first),
                              conso(firstHead, combinedTail, combined),
                              appendo(firstTail, second, combinedTail))))
+
+def indexo(lst, elem, index):
+    def indexoHelp(state):
+        substitution = state.constraints.get("eq", frozenset())
+        lst_val = walk(lst, substitution)
+        assert isinstance(lst_val, Link), "lst_val must be a known Link"
+        return 
+    return generate(indexoHelp)
+
+def is_action(action):
+    return disj_x(eq(action, Link()),
+                 call_fresh_x(lambda oldLocation, newLocation:
+                              eq(action, Link(oldLocation, newLocation))))
+
+def is_step(step):
+    def all_actions(action, newState):
+        conj_x(is_action(action),
+               eq(step, Link(action, newState)),
+               disj_x(eq(action, Link()),
+                      conj_x(
+                        )))
+    def not_first_action(action, newState, )
+
+    return call_fresh_x(lambda action, newState:

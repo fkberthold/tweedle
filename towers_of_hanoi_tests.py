@@ -121,7 +121,6 @@ class Test_Emptyo(Test_Conso_Fixtures):
 class Test_Append(Test_Conso_Fixtures):
     def test_constant_all_empty(self):
         states = list(appendo(Link(), Link(), Link())(self.empty_state))
-        print(states)
         self.assertEqual(len(states), 1)
 
     def test_first_not_empty(self):
@@ -152,6 +151,35 @@ class Test_Append(Test_Conso_Fixtures):
         states = list(appendo(Link('dee'), Link('dum'), Link('dum'))(self.empty_state))
         self.assertEqual(len(states), 0)
 
+    def test_first_is_var(self):
+        states = list(run_x(lambda dee: appendo(dee, Link('dum'), list_to_links(['dee', 'dum'])))(self.empty_state))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(states[0], {(var(0, 'dee'), Link('dee'))})
+
+    def test_first_has_var(self):
+        states = list(run_x(lambda dee: appendo(Link(dee), Link('dum'), list_to_links(['dee', 'dum'])))(self.empty_state))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(states[0], {(var(0, 'dee'), 'dee')})
+
+    def test_second_is_var(self):
+        states = list(run_x(lambda dum: appendo(Link('dee'), dum, list_to_links(['dee', 'dum'])))(self.empty_state))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(states[0], {(var(0, 'dum'), Link('dum'))})
+
+    def test_second_has_var(self):
+        states = list(run_x(lambda dum: appendo(Link('dee'), Link(dum), list_to_links(['dee', 'dum'])))(self.empty_state))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(states[0], {(var(0, 'dum'), 'dum')})
+
+    def test_combined_is_var(self):
+        states = list(run_x(lambda deedum: appendo(Link('dee'), Link('dum'), deedum))(self.empty_state))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(states[0], {(var(0, 'dum'), list_to_links(['dee', 'dum']))})
+
+    def test_combined_has_first_var(self):
+        states = list(run_x(lambda dee: appendo(Link('dee'), Link('dum'), list_to_links([dee, 'dum'])))(self.empty_state))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(states[0], {(var(0, 'dee'), 'dee')})
 
 if __name__ == "__main__":
     unittest.main()
