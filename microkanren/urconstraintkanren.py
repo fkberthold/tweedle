@@ -51,7 +51,7 @@ class Link(object):
         @param tail: The rest of the list, if any, or another value.
         """
         self.head = head
-        if isinstance(tail, type(self)) and tail.is_empty():
+        if isinstance(tail, Link) and tail.is_empty():
             self.tail = None
         else:
             self.tail = tail
@@ -256,49 +256,75 @@ class State(object):
         self.count = count
         self.constraints = {}
         self.constraintFunctions = constraintFunctions
-        if constraints:
-            self.constraints = {constraint:frozenset(constraint)}
-            for constraint in constraints:
-                self.constraints[constraint] = frozenset(constraints[constraint])
+        for constraint in constraints:
+            self.constraints[constraint] = frozenset(constraints[constraint])
 
     def __eq__(self, other):
+        """When comparing two states for equality, we only compare the count and
+        constraints value because comparing functions in python is a pointer
+        comparison.
+        @param other: The state being compared to.
+        @return: True if both the counts and constraints are the same.
+        """
         assert isinstance(other, State)
-        return self.count == other.count and self.constraints == other.constraints
+        if self.count == other.count and self.constraints == other.constraints:
+            return True
+        else:
+            return False
 
     def __repr__(self):
+        """This tries to display the state in a reasonably readable format
+        as:
+          Count: 2
+          Constraints:
+              Eq:
+                  (var(0), 3)
+                  (var(1), var(0))
+        @return: A string representing the state.
+        """
         constraint_str = ""
         for constraint in self.constraints:
             constraint_str += "\t%s:\n" % constraint
             for constraint_arguments in self.constraints[constraint]:
                 constraint_str += "\t\t%s\n" % repr(constraint_arguments)
-        return "\nCount: %i\nConstraints:\n%s" % (self.count, str(constraint_str))
+        return "\nCount: %i\nConstraints:\n%s" % (self.count, constraint_str)
 
-def var(c, name=None):
-    """Var creates a Term by wrapping an integer in a list"""
-    return LogicVariable(c, name)
+def var(identifier, name=None):
+    """A wrapper that creates a LogicVariable. This is mostly to match other
+    implementations and save a few keystrokes.
+
+    This will rarely be used in normal code. The most common usage will be
+    in the creation of new constraints and testing. Otherwise you'll bring
+    variables in via the `call_fresh` function.
+    """
+    return LogicVariable(identifier, name)
 
 
-def varq(x):
-    """Determine if a value is a var"""
-    return isinstance(x, LogicVariable)
+def varq(value):
+    """Determine if a value is a LogicVariable."""
+    return isinstance(value, LogicVariable)
 
 def vareq(x1, x2):
-    """Determine if to vars are equal. This does not check if
-    they're values are the same, but if they are exactly the same
-    pointer."""
+    """Determine if to vars are equal. This does not check if they're
+    values are the same, but if they are exactly the same pointer.
+    """
     return x1.id  == x2.id
 
 def walk(term, substitution):
-    """Walk through the given substitution.
-        If the term is not a variable, return it,
-        If the term is a variable and the first value found is not a variable, return it.
-        If the first value found is a variable, repeat walking on that variable."""
-    if isinstance(term, LogicVariable):
+    """Walk is a special case function for dealing with the equality constraint.
+    it repeatedly walks through the substitution replacing term's LogicVariable
+    values until term doesn't contain any LogicVariables that are on the left
+    side in the substitution.
+
+    If the term is a list, 
+    """
+
+    if varq(term):
         values = [value for (t, value) in substitution if t == term]
         assert len(values) <= 1, "Something has gone horribly wrong we've asserted %s could be the following, any given value can only equal one thing: %s" % (str(term), str(values))
         if values == []:
             return term
-        elif isinstance(values[0], LogicVariable):
+        elif varq(values[0]):
             return walk(values[0], substitution)
         else:
             return values[0]
