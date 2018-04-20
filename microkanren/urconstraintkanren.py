@@ -263,6 +263,7 @@ class State(object):
         """When comparing two states for equality, we only compare the count and
         constraints value because comparing functions in python is a pointer
         comparison.
+
         @param other: The state being compared to.
         @return: True if both the counts and constraints are the same.
         """
@@ -280,6 +281,7 @@ class State(object):
               Eq:
                   (var(0), 3)
                   (var(1), var(0))
+
         @return: A string representing the state.
         """
         constraint_str = ""
@@ -296,32 +298,49 @@ def var(identifier, name=None):
     This will rarely be used in normal code. The most common usage will be
     in the creation of new constraints and testing. Otherwise you'll bring
     variables in via the `call_fresh` function.
+
+    @param identifier: A numeric identifier for a new LogicVariable.
+    @param name: An optional name for the new LogicVariable.
+    @return: A new LogicVariable.
     """
     return LogicVariable(identifier, name)
 
 
 def varq(value):
-    """Determine if a value is a LogicVariable."""
+    """Determine if a value is a LogicVariable.
+
+    @param value: This can be any value, but will generally be a term in the
+    logic system.
+    @return: True if the value is a LogicVariable, False otherwise.
+    """
     return isinstance(value, LogicVariable)
 
 def vareq(x1, x2):
-    """Determine if to vars are equal. This does not check if they're
-    values are the same, but if they are exactly the same pointer.
+    """Determine if two vars are equal. This does not check if they're values
+    are the same, but if they are exactly the same pointer.
+
+    Also note that it makes no difference at all if they have the same `name`
+    value.
+
+    @param x1: A Logic Variable
+    @param x2: Another Logic Variable
+    @return: True if they have the same id.
     """
     return x1.id  == x2.id
 
 def walk(term, substitution):
-    """Walk is a special case function for dealing with the equality constraint.
+    """Walk is a helper function for dealing with the equality constraint.
     it repeatedly walks through the substitution replacing term's LogicVariable
     values until term doesn't contain any LogicVariables that are on the left
     side in the substitution.
 
-    If the term is a list, 
+    @param term: The original term to search for.
+    @return: A literal value or LogicVariable depending on what the substitution
+    contains.
     """
-
     if varq(term):
         values = [value for (t, value) in substitution if t == term]
-        assert len(values) <= 1, "Something has gone horribly wrong we've asserted %s could be the following, any given value can only equal one thing: %s" % (str(term), str(values))
+        assert len(values) <= 1
         if values == []:
             return term
         elif varq(values[0]):
@@ -332,22 +351,50 @@ def walk(term, substitution):
         return term
 
 def ext_s(variable, value, substitution):
-    """Add a value v to variable x for the given substitution s"""
+    """ext_s is a helper function for eq, without checking for duplicates or
+    contradiction it adds a variable/value pair to the given substitution.
+    `unify` deals with all of the related verification.
+
+    @param variable: A LogicVariable
+    @param value: A value that can either be a LogicVariable or literal.
+    @param substitution: A set of tuples indicating equality for LogicVariables.
+    @return: A new substitution with variable and value set as being equal.
+    """
     return substitution | {(variable, value)}
 
 # The state when there is a contradiction in terms.
 mzero = iter([])
 
 def unit(state):
-    """Don't change anything"""
+    """Used for lifting a new stream of states into a goal.
+
+    @param state: A State object to be streamed.
+    @return: A generator yielding a single State.
+    """
     yield state
 
 def unify(left, right, substitution):
-    """Given a pair of terms determines if they can be equivalent.
-        If they are both the same established value, returns the substitution.
-        If one or the other value is unknown, then updates the substitution with
-            the unkown value being set to the known value.
-        If they can't be unified then returns False."""
+    """unify is a helper function and the core for eq. unify will
+    recursively look up both `left` and `right` in substitution using the `walk`
+    function.
+
+    After getting each of their associated values, they are compared.
+       If they are equal either as variables or literals, no change is made and
+          the original substitution is returned.
+       If either of the values is a LogicVariable, then the pair of values is
+          added to the `substitution` via ext_s.
+       If both of the values is a Link (linked list), then each of their values
+          is unified in turn, if any of their values fails unificaiton, then
+          `left` and `right` also fail.
+       If the the values are literals or both variables and not equal, then
+          unification fails and the state will be found to be invalid.
+
+    @param left: The left term in an equality goal.
+    @param right: The right term in an equality goal.
+    @param substitution: A set of paired terms in the form {(left, right)} which
+    assert that left == right.
+    @return: A valid substitution if `left` and `right` unify, False otherwise.
+    """
     leftValue = walk(left, substitution)
     rightValue = walk(right, substitution)
     if varq(leftValue) and varq(rightValue) and vareq(leftValue, rightValue):
@@ -367,25 +414,77 @@ def unify(left, right, substitution):
     else:
         return False
 
+def generate(goal):
+    """generate is used to simplify writing goals.  It's intended that when we
+    author new goals we can do so without worrying whether those goals will be
+    passed a single state, or stream of states.
+
+    generate will either read a state or stream of states and feed one state
+    at a time to `goal`, it will then yield a stream of states.
+
+    @param goal: A goal that may or may not yield a stream of states.
+    @return: A stream of states.
+    """
+    def generate_help(state):
+        if isinstance(state, types.GeneratorType):
+            for genState in state:
+                result = goal(genState)
+                if isinstance(result, State):
+                    yield result
+                else:
+                    yield from result
+        else:
+            result = goal(state)
+            yield from applyConstraints(result)
+    return generate_help
+
 def eq(left, right):
-    """Returns a function that takes a state/count object and returns
-        a list of new state/count objects.
-       If left and right are both set terms, determines if they are the same.
-           If they are, returns the state as is.
-           If they are not, then returns an empty state.
-       If left or right is a variable, then asserts they are equal and adds it to,
-          the state. If they are not equal, then returns an empty state."""
+    """eq is the first and most common constraint.  It constrains `left` and
+    `right` to be the same value.
+
+    @param left: Either a LogicVariable or literal.
+    @param right: Either a LogicVariable or literal.
+    @return: A function that takes a state and returns a stream of states.
+    """
     def eqHelp(state):
         substitution = state.constraints.get("eq", frozenset())
         unified = unify(left, right, substitution)
         if isinstance(unified, frozenset):
-            return State({**state.constraints, **{"eq":unified}}, {**state.constraintFunctions, **{"eq":eq}}, state.count)
+            constraints = {**state.constraints, **{"eq":unified}}
+            constraint_funcs = {**state.constraintFunctions, **{"eq":eq}}
+            return State(new_constraints, constraint_funcs, state.count)
         else:
             return mzero
     return generate(eqHelp)
 
+def make_constraint(state, fails, function, *args):
+    """A small helper function for constructing new constraints, it takes care
+    most of the standard chores of adding the new function and terms to the
+    State.
+
+    @param state: The state that's changing.
+    @param fails: If false, then the state is invalid an mzero is returned, this
+    is used to simplify the constraint itself.
+    @param function: The constraint function to be added to the state.
+    @param *args: Each of the arguments to be added.
+    @return: A stream containing either no state or a single state.
+    """
+    if fails:
+        return mzero
+    else:
+        name = function.__name__
+        constraint = state.constraints.get(name, frozenset())
+        constraints = {**state.constraints, **{name:constraint | {args}}}
+        constraint_funcs = {**state.constraintFunctions, name:function}
+        return unit(State(constraints, constraint_funcs, state.count))
+
 def neq(left, right):
-    """Asserts that the `left` value is not equal to the `right` value."""
+    """Asserts that the `left` value is not equal to the `right` value.
+
+    @param left: A literal or LogicVariable
+    @param right: A literal or LogicVariable
+    @return: A function that takes a state and returns a stream of states.
+    """
     def neqHelp(state):
         substitution = state.constraints.get("eq", frozenset())
         leftValue = walk(left, substitution)
@@ -395,7 +494,13 @@ def neq(left, right):
     return generate(neqHelp)
 
 def absento(elem, lst):
-    """Asserts that `elem` is neither equal to `lst`, nor is it an element of `lst`."""
+    """Asserts that `elem` is neither equal to `lst`, nor is it an element of
+    `lst`.
+
+    @param elem: A literal or LogicVariable that shouldn't be in `lst`.
+    @param lst: A value that could either be a list or individual element.
+    @return: A function that takes a state and returns a stream of states.
+    """
     def absentoHelp(state):
         substitution = state.constraints.get("eq", frozenset())
         elemValue = walk(elem, substitution)
@@ -405,62 +510,60 @@ def absento(elem, lst):
         return make_constraint(state, fails, absento, elem, lst)
     return generate(absentoHelp)
 
-def make_constraint(state, fails, function, *args):
-    # Python reflection lets us pull the name of the function that was passed
-    if fails:
-        return mzero
-    else:
-        name = function.__name__
-        constraint = state.constraints.get(name, frozenset())
-        return unit(State({**state.constraints, **{name:constraint | {args}}}, {**state.constraintFunctions, name:function}, state.count))
-
 def call_fresh(function):
     """call_fresh is used to instantiate new variables in the logic system.
+
     @param function: A single arity function that returns a goal.
     @return: The goal returned by function.
     """
+
     def call_fresh_help(state):
         count = state.count
-        name = list(signature(function).parameters)[0]  # Gets the names of the argument for 'function'
+        # Gets the names of the argument for 'function'
+        name = list(signature(function).parameters)[0]
         new_var = var(count, name)
         goal = function(new_var)
-        newState = State(state.constraints, state.constraintFunctions, count + 1)
+        newState = State(state.constraints, state.constraintFunctions, count+1)
         yield from goal(newState)
     return generate(call_fresh_help)
 
 def disj(g1, g2):
-    """Take multiple relations. For each one that evaluates true, concatenate and return
-        it's results."""
+    """Take two relations, pass the state to each of them separately, yield a
+    stream of states alternately from each relation.  This is equivalent to an
+    xor boolean operation.
+
+    @param g1: A relation.
+    @param g2: A relation.
+    @return: A function that reads a stream of states and outputs the states
+    yielded from each realation.
+    """
+
     def disj_help(state):
         yield from mplus(g1(state), g2(state))
     return generate(disj_help)
 
 def conj(g1, g2):
-    """Take two relations. Determine the result if both are true."""
+    """Take two relations, pass the state to the first relation, then pass each
+    state that it yields to the second relation, then yields the result.  This
+    is equivalent to an and boolean operation.
+
+    @param g1: A relation.
+    @param g2: A relation.
+    @return: A function that streams a state through both g1 and g2.
+    """
     def conj_help(state):
         yield from bind(g1, g2)(state)
     return generate(conj_help)
 
-def generate(fun):
-    """If `state` is a single state, applies fun to it, if it is a generator,
-       then applies fun across the generator and yields for each result.
-
-       If fun returns a single state, returns a generator that yields the one
-       state, if it returns a generator, then will yield over that genrator."""
-    def generate_help(state):
-        if isinstance(state, types.GeneratorType):
-            for genState in state:
-                result = fun(genState)
-                if isinstance(result, State):
-                    yield result
-                else:
-                    yield from result
-        else:
-            result = fun(state)
-            yield from applyConstraints(result)
-    return generate_help
-
 def applyConstraints(state):
+    """For the given state, consecutively applies all of it's exiting
+    constraints to determine if a change in the state breaks one of the existing
+    constraints.
+
+    @param state: The state getting verified.
+    @return: A stream of states resulting from the application of the
+    constraints.
+    """
     goal = unit
     if isinstance(state, State):
         for constraint in state.constraints:
@@ -472,8 +575,26 @@ def applyConstraints(state):
         for stateFromGen in state:
             yield from applyConstraints(stateFromGen)
 
-
 def mplus(state_stream1, state_stream2):
+    """mplus is a monad thing, don't worry about the name.
+
+    The easy explanation is, given two streams of states it will alternately
+    take a value from each one, so assuming each state has a stream like:
+
+    state_stream1 = [state1a, state1b, state1c]
+    state_stream2 = [state2a, state2b, state2c]
+
+    This will yield:
+
+    [state1a, state2a, state1b, state2b, state1c, state2c]
+
+    If either of the streams run out, then the remainder of the states from the
+    other stream are yielded.
+
+    @param state_stream1: A stream of zero or more states.
+    @param state_stream2: A stream of zero or more states.
+    @return: The combined states from state_stream1 and state_stream2
+    """
     stateStreams = [state_stream1, state_stream2]
     newStreams = []
     while stateStreams:
@@ -488,6 +609,13 @@ def mplus(state_stream1, state_stream2):
         newStreams=[]
 
 def bind(goal1, goal2):
+    """Bind combines two goals by threading the results of goal1 through goal2.
+
+    @param goal1: Any goal.
+    @param goal2: Any goal.
+    @return: A new goal that given a state will yield the results of applying
+    goal1 to that state, then threading the results through goal2.
+    """
     def bind_help(state):
         goals = [goal1, goal2]
         stateStreams = []
