@@ -158,6 +158,27 @@ def lt(less, more):
 def gt(more, less):
     return lt(less, more)
 
+def subo(minuend, subtrahend, difference):
+    """Subtraction will make the basis for doing arithmatic
+    in constraint kanren."""
+    def suboHelp(state):
+        substitution = state.constraints.get("eq", frozenset())
+        minuend_ = walk(minuend, substitution)
+        subtrahend_ = walk(subtrahend, substitution)
+        difference_ = walk(difference, substitution)
+
+        varCount = len([varq(minuend_), varq(subtrahend_), varq(difference_)])
+
+        if varCount == 0:
+            if minuend_ - subtrahend_ == difference_:
+                return state
+            else:
+                return mzero
+        subos = state.constraints.get("subo", frozenset())
+
+        if varCount == 1:
+            if varq(minuend):
+
 def appendo(first, second, combined):
     return disj_x(conj_x(emptyo(first),
                         eq(second, combined)),
@@ -176,7 +197,16 @@ def indexo(lst, elem, index):
         substitution = state.constraints.get("eq", frozenset())
         lst_val = walk(lst, substitution)
         assert isinstance(lst_val, Link), "lst_val must be a known Link"
-        return 
+        return call_fresh_x(lambda head, tail:
+                            conj_x(not_emptyo(lst),
+                                   disj_x(conj_x(eq(index, 0),
+                                                 conso(head, tail, lst),
+                                                 eq(head, elem))
+                                          conj_x(lt(index, len(lst)))
+                                   ))
+        )conj_x(not_emptyo(lst),
+                     
+        )disj_x()
     return generate(indexoHelp)
 
 def is_action(action):

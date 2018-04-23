@@ -181,5 +181,6 @@ class Test_Append(Test_Conso_Fixtures):
         self.assertEqual(len(states), 1)
         self.assertEqual(states[0], {(var(0, 'dee'), 'dee')})
 
+
 if __name__ == "__main__":
     unittest.main()
