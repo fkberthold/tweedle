@@ -168,16 +168,29 @@ def subo(minuend, subtrahend, difference):
         difference_ = walk(difference, substitution)
 
         varCount = len([varq(minuend_), varq(subtrahend_), varq(difference_)])
+        subos = state.constraints.get("subo", frozenset())
 
         if varCount == 0:
             if minuend_ - subtrahend_ == difference_:
                 return state
             else:
                 return mzero
-        subos = state.constraints.get("subo", frozenset())
-
-        if varCount == 1:
-            if varq(minuend):
+        elif varCount == 1:
+            if varq(minuend_):
+                yield from eq(minuend_, difference_ + subtrahend_)(state)
+            elif varq(subtrahend_):
+                yield from eq(subtrahend_, minuend_ - difference_)(state)
+            else:
+                yield from eq(difference_, minuend_ - subtrahend_)(state)
+        elif varCount == 2:
+            if not varq(minuend_):
+                pass
+            elif not varq(subtrahend_):
+                pass
+            else:
+                pass
+        else:
+            pass
 
 def appendo(first, second, combined):
     return disj_x(conj_x(emptyo(first),
@@ -192,6 +205,7 @@ def appendo(first, second, combined):
                              conso(firstHead, combinedTail, combined),
                              appendo(firstTail, second, combinedTail))))
 
+"""
 def indexo(lst, elem, index):
     def indexoHelp(state):
         substitution = state.constraints.get("eq", frozenset())
@@ -205,9 +219,9 @@ def indexo(lst, elem, index):
                                           conj_x(lt(index, len(lst)))
                                    ))
         )conj_x(not_emptyo(lst),
-                     
         )disj_x()
     return generate(indexoHelp)
+"""
 
 def is_action(action):
     return disj_x(eq(action, Link()),

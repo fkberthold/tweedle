@@ -452,7 +452,7 @@ def eq(left, right):
         if isinstance(unified, frozenset):
             constraints = {**state.constraints, **{"eq":unified}}
             constraint_funcs = {**state.constraintFunctions, **{"eq":eq}}
-            return State(new_constraints, constraint_funcs, state.count)
+            return State(constraints, constraint_funcs, state.count)
         else:
             return mzero
     return generate(eqHelp)
