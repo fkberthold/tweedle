@@ -181,6 +181,19 @@ class Test_Append(Test_Conso_Fixtures):
         self.assertEqual(len(states), 1)
         self.assertEqual(states[0], {(var(0, 'dee'), 'dee')})
 
+class Test_Addo(Test_Conso_Fixtures):
+    def test_addo_const_passes(self):
+        states = list(addo(3, 4, 7)(State()))
+        self.assertEqual(len(states), 1)
+
+    def test_addo_const_fails(self):
+        states = list(addo(3, 4, 8)(State()))
+        self.assertEqual(len(states), 0)
+
+    def test_addo_var_total(self):
+        states = list(call_fresh(lambda x: (addo(3, 4, x)))(State()))
+        self.assertEqual(len(states), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

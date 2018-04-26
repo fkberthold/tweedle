@@ -158,39 +158,32 @@ def lt(less, more):
 def gt(more, less):
     return lt(less, more)
 
-def subo(minuend, subtrahend, difference):
-    """Subtraction will make the basis for doing arithmatic
+def addo(augend, addend, total):
+    """Addition will make the basis for doing arithmatic
     in constraint kanren."""
-    def suboHelp(state):
+    def addoHelp(state):
         substitution = state.constraints.get("eq", frozenset())
-        minuend_ = walk(minuend, substitution)
-        subtrahend_ = walk(subtrahend, substitution)
-        difference_ = walk(difference, substitution)
+        augend_ = walk(augend, substitution)
+        addend_ = walk(addend, substitution)
+        total_ = walk(total, substitution)
 
-        varCount = len([varq(minuend_), varq(subtrahend_), varq(difference_)])
-        subos = state.constraints.get("subo", frozenset())
+        varCount = len([val for val in [augend_, addend_, total_] if varq(val)])
 
         if varCount == 0:
-            if minuend_ - subtrahend_ == difference_:
-                return state
+            if augend_ + addend_ == total_:
+                yield state
             else:
-                return mzero
+                yield from mzero
         elif varCount == 1:
-            if varq(minuend_):
-                yield from eq(minuend_, difference_ + subtrahend_)(state)
-            elif varq(subtrahend_):
-                yield from eq(subtrahend_, minuend_ - difference_)(state)
+            if varq(augend_):
+                yield from eq(augend_, total_ - addend_)(state)
+            elif varq(addend_):
+                yield from eq(addend_, total_ - augend_)(state)
             else:
-                yield from eq(difference_, minuend_ - subtrahend_)(state)
-        elif varCount == 2:
-            if not varq(minuend_):
-                pass
-            elif not varq(subtrahend_):
-                pass
-            else:
-                pass
+                yield from eq(total_, augend_ + addend_)(state)
         else:
-            pass
+            yield make_constraint(state, True, addo, augend, addend, total)
+    return generate(addoHelp)
 
 def appendo(first, second, combined):
     return disj_x(conj_x(emptyo(first),
@@ -221,7 +214,6 @@ def indexo(lst, elem, index):
         )conj_x(not_emptyo(lst),
         )disj_x()
     return generate(indexoHelp)
-"""
 
 def is_action(action):
     return disj_x(eq(action, Link()),
@@ -238,3 +230,4 @@ def is_step(step):
     def not_first_action(action, newState, )
 
     return call_fresh_x(lambda action, newState:
+"""
