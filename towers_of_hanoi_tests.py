@@ -39,7 +39,7 @@ class Test_Conso(Test_Conso_Fixtures):
         states = list(run_x(lambda lst: conso("Alice", self.empty_link, lst))(self.just_alice))
         self.assertEqual(len(states), 1)
         answer = states[0]
-        self.assertEqual(answer, {(var(1, 'lst'), list_to_links(['Alice']))})
+        self.assertEqual(answer, [Link('Alice')])
 
     def test_fail(self):
         answers = list(run_x(lambda name: conj(eq(name, 'Dinah'), conso(name, self.empty_link, self.alice_alone)))(self.just_alice))
@@ -154,32 +154,32 @@ class Test_Append(Test_Conso_Fixtures):
     def test_first_is_var(self):
         states = list(run_x(lambda dee: appendo(dee, Link('dum'), list_to_links(['dee', 'dum'])))(self.empty_state))
         self.assertEqual(len(states), 1)
-        self.assertEqual(states[0], {(var(0, 'dee'), Link('dee'))})
+        self.assertEqual(states[0], [Link('dee')])
 
     def test_first_has_var(self):
         states = list(run_x(lambda dee: appendo(Link(dee), Link('dum'), list_to_links(['dee', 'dum'])))(self.empty_state))
         self.assertEqual(len(states), 1)
-        self.assertEqual(states[0], {(var(0, 'dee'), 'dee')})
+        self.assertEqual(states[0], ['dee'])
 
     def test_second_is_var(self):
         states = list(run_x(lambda dum: appendo(Link('dee'), dum, list_to_links(['dee', 'dum'])))(self.empty_state))
         self.assertEqual(len(states), 1)
-        self.assertEqual(states[0], {(var(0, 'dum'), Link('dum'))})
+        self.assertEqual(states[0], [Link('dum')])
 
     def test_second_has_var(self):
         states = list(run_x(lambda dum: appendo(Link('dee'), Link(dum), list_to_links(['dee', 'dum'])))(self.empty_state))
         self.assertEqual(len(states), 1)
-        self.assertEqual(states[0], {(var(0, 'dum'), 'dum')})
+        self.assertEqual(states[0], ['dum'])
 
     def test_combined_is_var(self):
         states = list(run_x(lambda deedum: appendo(Link('dee'), Link('dum'), deedum))(self.empty_state))
         self.assertEqual(len(states), 1)
-        self.assertEqual(states[0], {(var(0, 'dum'), list_to_links(['dee', 'dum']))})
+        self.assertEqual(states[0], [list_to_links(['dee', 'dum'])])
 
     def test_combined_has_first_var(self):
         states = list(run_x(lambda dee: appendo(Link('dee'), Link('dum'), list_to_links([dee, 'dum'])))(self.empty_state))
         self.assertEqual(len(states), 1)
-        self.assertEqual(states[0], {(var(0, 'dee'), 'dee')})
+        self.assertEqual(states[0], ['dee'])
 
 class Test_Addo(Test_Conso_Fixtures):
     def test_addo_const_passes(self):
@@ -191,9 +191,79 @@ class Test_Addo(Test_Conso_Fixtures):
         self.assertEqual(len(states), 0)
 
     def test_addo_var_total(self):
-        states = list(call_fresh(lambda x: (addo(3, 4, x)))(State()))
+        states = list(run_x(lambda x: (addo(3, 4, x)))(State()))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(states[0], [7])
+
+    def test_addo_var_augend(self):
+        states = list(run_x(lambda x: (addo(x, 4, 7)))(State()))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(states[0], [3])
+
+    def test_addo_var_addend(self):
+        states = list(run_x(lambda x: (addo(3, x, 7)))(State()))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(states[0], [4])
+
+    def test_across_two(self):
+        states = list(run_x(lambda x:
+                            call_fresh(lambda y:
+                                       conj_x(addo(y, x, 7),
+                                              eq(y, 3))))(State()))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(states[0], [4])
+
+class Test_Indexo(Test_Conso_Fixtures):
+    def test_indexo_const_just_one_passes(self):
+        states = list(indexo(Link('Alice'), 'Alice', 0)(State()))
         self.assertEqual(len(states), 1)
 
+    def test_indexo_const_just_one_fails(self):
+        states = list(indexo(Link('Alice'), 'Dinah', 0)(State()))
+        self.assertEqual(len(states), 0)
+
+    def test_indexo_just_one_elem_var(self):
+        states = list(run_x(lambda name: indexo(Link('Alice'), name, 0))(State()))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(states[0], ['Alice'])
+
+    def test_indexo_just_one_index_var(self):
+        states = list(run_x(lambda index: indexo(Link('Alice'), 'Alice', index))(State()))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(states[0], [0])
+
+    def test_indexo_just_one_lst_var(self):
+        states = list(run_x(lambda lst: indexo(lst, 'Alice', 0))(State()))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(states[0][0].head, 'Alice')
+
+    def test_indexo_second_elem_var(self):
+        states = list(run_x(lambda name: indexo(list_to_links(['Hatter', 'Hare', 'Dormouse']), name, 1))(State()))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(states[0], ['Hare'])
+
+    def test_indexo_third_elem_var(self):
+        states = list(run_x(lambda name: indexo(list_to_links(['Hatter', 'Hare', 'Dormouse']), name, 2))(State()))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(states[0], ['Dormouse'])
+
+    def test_indexo_second_index_var(self):
+        states = list(run_x(lambda index: indexo(list_to_links(['Hatter', 'Hare', 'Dormouse']), 'Hare', index))(State()))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(states[0], [1])
+
+    def test_indexo_third_index_var(self):
+        states = list(run_x(lambda index: indexo(list_to_links(['Hatter', 'Hare', 'Dormouse']), 'Dormouse', index))(State()))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(states[0], [2])
+
+    def test_indexo_more_than_one(self):
+        states = list(run_x(lambda index: indexo(list_to_links(['Card', 'Queen', 'Card']), 'Card', index))(State()))
+        self.assertEqual(len(states), 2)
+        self.assertEqual(states, [[0], [2]])
+
+class Test_Is_Action(Test_Conso_Fixtures):
+    pass
 
 if __name__ == "__main__":
     unittest.main()

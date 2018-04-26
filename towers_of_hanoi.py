@@ -42,16 +42,10 @@ def run_x(f):
             constraints = gen_state.constraints
             constraintFunctions = gen_state.constraintFunctions
             count = gen_state.count
-            if 'eq' in constraints:
-                old_eq = constraints['eq']
-                new_eq = {(var, deep_walk(var, old_eq)) for var in new_vars}
-                new_constraints = {**constraints, 'eq': frozenset(new_eq)}
-                yield State(new_constraints, constraintFunctions, count)
-    def run_x_help(state):
-        generator = generate(call_fresh_help)(state)
-        for new_state in generator:
-            yield new_state.constraints.get('eq', frozenset())
-    return run_x_help
+            old_eq = constraints.get('eq', frozenset())
+            output = [deep_walk(var, old_eq) for var in new_vars]
+            yield output
+    return call_fresh_help
 
 def conj_x(*args):
     if len(args) <= 2:
@@ -182,7 +176,7 @@ def addo(augend, addend, total):
             else:
                 yield from eq(total_, augend_ + addend_)(state)
         else:
-            yield make_constraint(state, True, addo, augend, addend, total)
+            yield from make_constraint(state, False, addo, augend, addend, total)
     return generate(addoHelp)
 
 def appendo(first, second, combined):
@@ -198,28 +192,23 @@ def appendo(first, second, combined):
                              conso(firstHead, combinedTail, combined),
                              appendo(firstTail, second, combinedTail))))
 
-"""
 def indexo(lst, elem, index):
-    def indexoHelp(state):
-        substitution = state.constraints.get("eq", frozenset())
-        lst_val = walk(lst, substitution)
-        assert isinstance(lst_val, Link), "lst_val must be a known Link"
-        return call_fresh_x(lambda head, tail:
-                            conj_x(not_emptyo(lst),
-                                   disj_x(conj_x(eq(index, 0),
-                                                 conso(head, tail, lst),
-                                                 eq(head, elem))
-                                          conj_x(lt(index, len(lst)))
-                                   ))
-        )conj_x(not_emptyo(lst),
-        )disj_x()
-    return generate(indexoHelp)
+    return call_fresh_x(lambda head, tail:
+                        conj_x(not_emptyo(lst),
+                               lt(-1, index),
+                               conso(head, tail, lst),
+                               disj_x(conj_x(eq(index, 0),
+                                             eq(head, elem)),
+                                      call_fresh_x(lambda decrement:
+                                                   conj_x(addo(index, -1, decrement),
+                                                          indexo(tail, elem, decrement))))))
 
 def is_action(action):
     return disj_x(eq(action, Link()),
                  call_fresh_x(lambda oldLocation, newLocation:
                               eq(action, Link(oldLocation, newLocation))))
 
+"""
 def is_step(step):
     def all_actions(action, newState):
         conj_x(is_action(action),
