@@ -179,44 +179,99 @@ def addo(augend, addend, total):
             yield from make_constraint(state, False, addo, augend, addend, total)
     return generate(addoHelp)
 
+def leno(lst, length):
+    empty_list_0 = conj_x(emptyo(lst),
+                          lt(length, 1))
+    not_empty = call_fresh_x(
+        lambda head, tail, decrement:
+        conj_x(not_emptyo(lst),
+               lt(0, length),
+               conso(head, tail, lst),
+               leno(tail, decrement),
+               addo(decrement, 1, length)))
+    return disj(empty_list_0, not_empty)
+
 def appendo(first, second, combined):
-    return disj_x(conj_x(emptyo(first),
-                        eq(second, combined)),
-                  conj_x(not_emptyo(first),
-                         emptyo(second),
-                         eq(first,combined)),
-                  call_fresh_x(lambda firstHead, firstTail, combinedTail:
-                      conj_x(not_emptyo(first),
-                             not_emptyo(second),
-                             conso(firstHead, firstTail, first),
-                             conso(firstHead, combinedTail, combined),
-                             appendo(firstTail, second, combinedTail))))
+    first_empty = conj_x(emptyo(first),
+                         eq(second, combined))
+    second_empty = conj_x(not_emptyo(first),
+                          emptyo(second),
+                          eq(first,combined))
+    neither_empty = call_fresh_x(
+        lambda firstHead, firstTail, combinedTail:
+        conj_x(not_emptyo(first),
+               not_emptyo(second),
+               conso(firstHead, firstTail, first),
+               conso(firstHead, combinedTail, combined),
+               appendo(firstTail, second, combinedTail)))
+    return disj_x(first_empty, second_empty, neither_empty)
 
 def indexo(lst, elem, index):
+    def elem_is_head(head):
+        return conj_x(eq(index, 0),
+                      eq(head, elem))
+    def elem_is_in_tail(tail):
+        return call_fresh_x(lambda decrement:
+                            conj_x(addo(index, -1, decrement),
+                            indexo(tail, elem, decrement)))
     return call_fresh_x(lambda head, tail:
                         conj_x(not_emptyo(lst),
                                lt(-1, index),
                                conso(head, tail, lst),
-                               disj_x(conj_x(eq(index, 0),
-                                             eq(head, elem)),
-                                      call_fresh_x(lambda decrement:
-                                                   conj_x(addo(index, -1, decrement),
-                                                          indexo(tail, elem, decrement))))))
+                               disj_x(elem_is_head(head),
+                                      elem_is_in_tail(tail))))
 
 def is_action(action):
+    """An action is in the form (newLocation . oldLocation) where the locations
+    are indexes of towers, starting at 0. eg. (0 . 2) moves a disk from tower 0
+    to tower 2.
+    """
     return disj_x(eq(action, Link()),
                  call_fresh_x(lambda oldLocation, newLocation:
-                              eq(action, Link(oldLocation, newLocation))))
+                              conj(eq(action, Link(oldLocation, newLocation)),
+                                      not_emptyo(action))))
 
-"""
+def is_tower(tower):
+    empty_tower = emptyo(tower)
+    one_disc_tower = leno(tower, 1)
+    multi_disc_tower = call_fresh_x(
+        lambda upperDisc, lowerDisc, withoutUpper, withoutLower:
+        conj_x(conso(upperDisc, withoutUpper, tower),
+               not_emptyo(withoutUpper),
+               conso(lowerDisc, withoutLower, withoutUpper),
+               lt(upperDisc, lowerDisc),
+               is_tower(withoutUpper)))
+    return disj_x(empty_tower, one_disc_tower, multi_disc_tower)
+
+def is_hanoi(hanoi):
+    """A set of hanoi towers must have at least 3 towers total. Anything less
+    will only work for special cases, so we disallow them."""
+    def all_towers(towers):
+        no_towers = emptyo(towers)
+        some_towers = call_fresh_x(
+            lambda head, tail:
+            conj_x(not_emptyo(towers),
+                   conso(head, tail, towers),
+                   is_tower(head),
+                   all_towers(tail)))
+        return disj(no_towers, some_towers)
+    more_than_2 = call_fresh_x(lambda length:
+                               conj(leno(hanoi, length),
+                                    gt(length, 2)))
+    return conj_x(all_towers(hanoi),
+                  more_than_2)
+
 def is_step(step):
-    def all_actions(action, newState):
-        conj_x(is_action(action),
-               eq(step, Link(action, newState)),
-               disj_x(eq(action, Link()),
-                      conj_x(
-                        )))
-    def not_first_action(action, newState, )
-
-    return call_fresh_x(lambda action, newState:
-"""
+    """Steps are of the form: (action, hanoi_tower_set), where hanoi_tower_set
+    is the current world state and action is the action that lead to that state.
+    If the action is an empty link, then it's the start state."""
+    return call_fresh_x(
+        lambda action, newState:
+        conj_x(conso(action, newState, step),
+               is_action(action),
+               is_hanoi(newState),
+               call_fresh_x(
+                   lambda fromIndex, toIndex, toTower:
+                   conj_x(conso(fromIndex, toIndex, action),
+                          indexo(toTower, toIndex, newState),
+                          not_emptyo(toTower)))))
