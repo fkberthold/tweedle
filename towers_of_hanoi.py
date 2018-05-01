@@ -181,7 +181,7 @@ def addo(augend, addend, total):
 
 def leno(lst, length):
     empty_list_0 = conj_x(emptyo(lst),
-                          lt(length, 1))
+                          eq(length, 0))
     not_empty = call_fresh_x(
         lambda head, tail, decrement:
         conj_x(not_emptyo(lst),
@@ -257,7 +257,7 @@ def is_hanoi(hanoi):
         return disj(no_towers, some_towers)
     more_than_2 = call_fresh_x(lambda length:
                                conj(leno(hanoi, length),
-                                    gt(length, 2)))
+                                    lt(2, length)))
     return conj_x(all_towers(hanoi),
                   more_than_2)
 
