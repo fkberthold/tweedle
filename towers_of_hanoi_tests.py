@@ -120,6 +120,16 @@ class Test_Lt(Test_Conso_Fixtures):
         states = list(call_fresh_x(lambda tarts, oysters: conj_x(lt(3, tarts), lt(tarts, oysters), lt(oysters, 5)))(self.empty_state))
         self.assertEqual(len(states), 0)
 
+    def test_pinch_to_eq_from_left(self):
+        states = list(run_x(lambda tarts: conj(lt(3, tarts), lt(tarts, 5)))(self.empty_state))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(states[0], [4])
+
+    def test_pinch_to_eq_from_right(self):
+        states = list(run_x(lambda tarts: conj(lt(tarts, 5), lt(3, tarts)))(self.empty_state))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(states[0], [4])
+
 class Test_Emptyo(Test_Conso_Fixtures):
     def test_constant_empty(self):
         states = list(emptyo(Link())(self.empty_state))

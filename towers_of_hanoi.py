@@ -79,6 +79,9 @@ def conso(head, tail, lst):
 
 def lt(less, more):
     def ltWalk(term, lessThans):
+        """Given a term and a set of lessThan constraints, returns the highest known
+        literal that is still less than the term and a list of variable terms that are
+        also less than term."""
         assert varq(term), "Can't walk a non-variable."
         terms = set([term])
         checkedTerms = set()
@@ -100,6 +103,9 @@ def lt(less, more):
         return (mostLiteral, terms)
 
     def mtWalk(term, lessThans):
+        """Given a term and a set of lessThan constraints, returns the lowest known
+        literal that is still more than the term and a list of variable terms that are
+        also more than term."""
         assert varq(term), "Can't walk a non-variable."
         terms = set([term])
         checkedTerms = set()
@@ -129,7 +135,9 @@ def lt(less, more):
         if varq(lessValue):
             (mostLiteral, leastSet) = ltWalk(lessValue, lessThans)
             if not varq(moreValue) and mostLiteral is not None:
-                if mostLiteral < moreValue:
+                if mostLiteral + 1 == moreValue:
+                    return make_constraint(state, False, eq, less, mostLiteral)
+                elif mostLiteral < moreValue:
                     return make_constraint(state, False, lt, less, more)
                 else:
                     return mzero
@@ -139,6 +147,8 @@ def lt(less, more):
         if varq(moreValue):
             (leastLiteral, mostSet) = mtWalk(moreValue, lessThans)
             if not varq(lessValue) and leastLiteral is not None:
+                if leastLiteral - 1 == lessValue:
+                    return make_constraint(state, False, eq, more, leastLiteral)
                 if lessValue < leastLiteral:
                     return make_constraint(state, False, lt, less, more)
                 else:
@@ -151,6 +161,21 @@ def lt(less, more):
 
 def gt(more, less):
     return lt(less, more)
+
+def incro(augend, total):
+    def addoHelp(state):
+        substitution = state.constraints.get("eq", frozenset())
+        augend_ = walk(augend, substitution)
+        total_ = walk(total, substitution)
+
+        if not(varq(augend_) or varq(total_)):
+            if augend_ + 1 == total_:
+                yield state
+            else:
+                yield from mzero
+        elif not varq(total_):
+            yield from eq(augend_, augend_ + 1)
+
 
 def addo(augend, addend, total):
     """Addition will make the basis for doing arithmatic
