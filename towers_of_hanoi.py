@@ -163,18 +163,22 @@ def gt(more, less):
     return lt(less, more)
 
 def incro(augend, total):
-    def addoHelp(state):
+    def incroHelp(state):
         substitution = state.constraints.get("eq", frozenset())
         augend_ = walk(augend, substitution)
         total_ = walk(total, substitution)
 
-        if not(varq(augend_) or varq(total_)):
+        if varq(augend_) and varq(total_):
+            yield from make_constraint(state, False, incro, augend, total)(state)
+        elif varq(total_):
+            yield from eq(total_, augend_ + 1)(state)
+        elif varq(augend_):
+            yield from eq(augend_, total_ + 1)(state)
+        else:
             if augend_ + 1 == total_:
                 yield state
             else:
                 yield from mzero
-        elif not varq(total_):
-            yield from eq(augend_, augend_ + 1)
 
 
 def addo(augend, addend, total):
