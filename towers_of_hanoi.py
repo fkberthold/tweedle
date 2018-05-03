@@ -163,22 +163,24 @@ def gt(more, less):
     return lt(less, more)
 
 def incro(augend, total):
+    """Assert that when augend is increased by one, the result is total."""
     def incroHelp(state):
         substitution = state.constraints.get("eq", frozenset())
         augend_ = walk(augend, substitution)
         total_ = walk(total, substitution)
 
         if varq(augend_) and varq(total_):
-            yield from make_constraint(state, False, incro, augend, total)(state)
+            yield from lt(augend, total)(make_constraint(state, False, incro, augend, total))
         elif varq(total_):
             yield from eq(total_, augend_ + 1)(state)
         elif varq(augend_):
-            yield from eq(augend_, total_ + 1)(state)
+            yield from eq(augend_, total_ - 1)(state)
         else:
             if augend_ + 1 == total_:
                 yield state
             else:
                 yield from mzero
+    return generate(incroHelp)
 
 
 def addo(augend, addend, total):
@@ -217,7 +219,7 @@ def leno(lst, length):
                lt(0, length),
                conso(head, tail, lst),
                leno(tail, decrement),
-               addo(decrement, 1, length)))
+               incro(decrement, length)))
     return disj(empty_list_0, not_empty)
 
 def appendo(first, second, combined):
@@ -241,8 +243,8 @@ def indexo(lst, elem, index):
                       eq(head, elem))
     def elem_is_in_tail(tail):
         return call_fresh_x(lambda decrement:
-                            conj_x(addo(index, -1, decrement),
-                            indexo(tail, elem, decrement)))
+                            conj_x(incro(decrement, index),
+                                   indexo(tail, elem, decrement)))
     return call_fresh_x(lambda head, tail:
                         conj_x(not_emptyo(lst),
                                lt(-1, index),

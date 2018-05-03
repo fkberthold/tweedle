@@ -135,6 +135,10 @@ class Test_Emptyo(Test_Conso_Fixtures):
         states = list(emptyo(Link())(self.empty_state))
         self.assertEqual(len(states), 1)
 
+    def test_nested_empty_not_empty(self):
+        states = list(emptyo(Link(Link()))(self.empty_state))
+        self.assertEqual(len(states), 0)
+
     def test_constant_not_empty(self):
         states = list(emptyo(Link('white knight'))(self.empty_state))
         self.assertEqual(len(states), 0)
@@ -276,6 +280,13 @@ class Test_Leno(Test_Conso_Fixtures):
                  lt(length, 2)))(State()))
         self.assertEqual(len(states), 1)
 
+    def test_leno_more(self):
+        states = list(run_x(
+            lambda length:
+            conj(leno(list_to_links(['Mad Hatter', 'March Hare', 'Dormouse']), length),
+                 lt(2, length)))(State()))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(states[0], [3])
 
 class Test_Indexo(Test_Conso_Fixtures):
     def test_indexo_const_just_one_passes(self):
@@ -334,6 +345,39 @@ class Test_Indexo(Test_Conso_Fixtures):
         self.assertEqual(len(states), 2)
         self.assertEqual(states, [['Hatter'], ['Hare']])
 
+class Test_Incro(Test_Hanoi_Fixtures):
+    def test_const_succeeds(self):
+        states = list(incro(3, 4)(State()))
+        self.assertEqual(len(states), 1)
+
+    def test_const_fail(self):
+        states = list(incro(4, 3)(State()))
+        self.assertEqual(len(states), 0)
+
+    def test_left_var(self):
+        states = list(run_x(lambda tarts: incro(tarts, 4))(State()))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(states[0], [3])
+
+    def test_right_var(self):
+        states = list(run_x(lambda tarts: incro(3, tarts))(State()))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(states[0], [4])
+
+    def test_chain_good(self):
+        states = list(run_x(lambda tweedles, partiers: conj(incro(tweedles, partiers),
+                                                            incro(partiers, 4)))(State()))
+        self.assertEqual(len(states), 1)
+        self.assertEqual(states[0], [2, 3])
+
+    def test_chain_contradicts(self):
+        states = list(run_x(lambda tweedles, partiers, knights:
+                            conj_x(incro(tweedles, partiers),
+                                   incro(partiers, knights),
+                                   incro(knights, tweedles)))(State()))
+        self.assertEqual(len(states), 0)
+
+
 class Test_Is_Action(Test_Conso_Fixtures):
     def test_empty_action(self):
         states = list(is_action(Link())(State()))
@@ -365,6 +409,10 @@ class Test_Is_Hanoi(Test_Hanoi_Fixtures):
         states = list(is_hanoi(self.start_hanoi)(State()))
         self.assertEqual(len(states), 1)
 
+    def test_hanoi_lenit(self):
+        states = list(run_x(lambda length: leno(self.start_hanoi, length))(State()))
+        print(states)
+#
 #    def test_too_few(self):
 #        states = list(is_hanoi(self.too_small_hanoi)(State()))
 #        self.assertEqual(len(states), 0)

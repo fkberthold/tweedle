@@ -52,9 +52,9 @@ class Link(object):
         """
         self.head = head
         if isinstance(tail, Link) and tail.is_empty():
-            self.tail = None
+            self.link = (head, (None, None))
         else:
-            self.tail = tail
+            self.link = (head, tail)
 
     def __eq__(self, other):
         """Equality here tests first for if both qualify as empty lists. As
