@@ -71,7 +71,7 @@ def conso(head, tail, lst):
                             conj_x(eq(new_head, head),
                                    eq(new_tail, tail),
                                    eq(lst, Link(new_head, new_tail))))
-    elif isinstance(lst, Link):
+    elif isinstance(lst, Link) and not lst.is_empty():
         return conj_x(eq(head, lst.head),
                      eq(tail, lst.tail))
     else:
@@ -301,8 +301,9 @@ def is_step(step):
         conj_x(conso(action, newState, step),
                is_action(action),
                is_hanoi(newState),
-               call_fresh_x(
-                   lambda fromIndex, toIndex, toTower:
-                   conj_x(conso(fromIndex, toIndex, action),
-                          indexo(toTower, toIndex, newState),
-                          not_emptyo(toTower)))))
+               disj_x(emptyo(action),
+                      call_fresh_x(
+                          lambda fromIndex, toIndex, toTower:
+                          conj_x(conso(fromIndex, toIndex, action),
+                                 indexo(toTower, toIndex, newState),
+                                 not_emptyo(toTower))))))

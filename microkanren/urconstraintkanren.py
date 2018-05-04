@@ -36,7 +36,7 @@ class Link(object):
     using Python lists, but in this style of linked list can be represented like
     this: `Link('cake', LogicVariable(0))`
     """
-    def __init__(self, head=None, tail=None):
+    def __init__(self, head=None, tail=()):
         """For practical purposes this is a traditional value and pointer style
         of linked list. The head is the value the tail is the pointer.  If the
         tail is set to None, then it's a single value list, if the head is set
@@ -50,11 +50,10 @@ class Link(object):
         @param head: The value for the link.
         @param tail: The rest of the list, if any, or another value.
         """
-        self.head = head
         if isinstance(tail, Link) and tail.is_empty():
-            self.link = (head, (None, None))
+            self._link = (head, ())
         else:
-            self.link = (head, tail)
+            self._link = (head, tail)
 
     def __eq__(self, other):
         """Equality here tests first for if both qualify as empty lists. As
@@ -68,7 +67,7 @@ class Link(object):
         @param other: The value being compared for equality.
         @return: True if both are equal, false otherwise.
         """
-        if other is None and self.is_empty():
+        if other == () and self.is_empty():
             return True
         if not isinstance(other, Link):
             return False
@@ -95,7 +94,7 @@ class Link(object):
             point_to = point_to.tail
             str_repr += " "
             str_repr += "%s" % repr(point_to.head)
-        if point_to.tail is None:
+        if point_to.tail is ():
             str_repr += ")"
         else:
             str_repr += " . %s)" % repr(point_to.tail)
@@ -134,13 +133,21 @@ class Link(object):
         else:
             return self.tail == elem
 
+    @property
+    def head(self):
+        return self._link[0]
+
+    @property
+    def tail(self):
+        return self._link[1]
+
     def is_empty(self):
         """Check if the list is `empty` which means both the `head` and `tail`
         are `None`.
 
         @return: True if empty, False otherwise.
         """
-        return self.head is None and self.tail is None
+        return self.head is None and self.tail is ()
 
 def list_to_links(lst):
     """Linked Lists are a neat, elegant data structure...

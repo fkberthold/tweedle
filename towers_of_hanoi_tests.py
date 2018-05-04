@@ -34,6 +34,10 @@ class Test_Conso(Test_Conso_Fixtures):
         self.assertEqual(len(states), 1)
         self.assertEqual(states, [self.just_alice])
 
+    def test_empty_lst(self):
+        states = list(call_fresh_x(lambda head, tail: conso(head, tail, Link()))(State()))
+        self.assertEqual(len(states), 0)
+
     def test_var_head(self):
         states = list(call_fresh(lambda head: conso(head, self.empty_link, self.alice_alone))(self.just_alice))
         self.assertEqual(len(states), 1)
@@ -409,23 +413,21 @@ class Test_Is_Hanoi(Test_Hanoi_Fixtures):
         states = list(is_hanoi(self.start_hanoi)(State()))
         self.assertEqual(len(states), 1)
 
-    def test_hanoi_lenit(self):
-        states = list(run_x(lambda length: leno(self.start_hanoi, length))(State()))
-        print(states)
-#
-#    def test_too_few(self):
-#        states = list(is_hanoi(self.too_small_hanoi)(State()))
-#        self.assertEqual(len(states), 0)
-#
-#    def test_has_non_tower(self):
-#        states = list(is_hanoi(self.bad_tower_hanoi)(State()))
-#        self.assertEqual(len(states), 0)
+    def test_too_few(self):
+        states = list(is_hanoi(self.too_small_hanoi)(State()))
+        self.assertEqual(len(states), 0)
 
-#class Test_Is_Step(Test_Hanoi_Fixtures):
-#    def test_valid_step(self):
-#        step = Link(Link(), self.start_hanoi)
-#        states = list(is_step(step)(State()))
-#        self.assertEqual(len(states), 1)
+    def test_has_non_tower(self):
+        states = list(is_hanoi(self.bad_tower_hanoi)(State()))
+        self.assertEqual(len(states), 0)
+
+class Test_Is_Step(Test_Hanoi_Fixtures):
+    def test_valid_step(self):
+        step = Link(Link(), self.start_hanoi)
+        print(step.head)
+        print(step.tail)
+        states = list(is_step(step)(State()))
+        self.assertEqual(len(states), 1)
 
 if __name__ == "__main__":
     unittest.main()
