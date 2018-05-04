@@ -304,6 +304,7 @@ def is_step(step):
                disj_x(emptyo(action),
                       call_fresh_x(
                           lambda fromIndex, toIndex, toTower:
-                          conj_x(conso(fromIndex, toIndex, action),
+                          conj_x(not_emptyo(action),
+                                 conso(fromIndex, toIndex, action),
                                  indexo(toTower, toIndex, newState),
                                  not_emptyo(toTower))))))

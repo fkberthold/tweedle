@@ -424,8 +424,6 @@ class Test_Is_Hanoi(Test_Hanoi_Fixtures):
 class Test_Is_Step(Test_Hanoi_Fixtures):
     def test_valid_step(self):
         step = Link(Link(), self.start_hanoi)
-        print(step.head)
-        print(step.tail)
         states = list(is_step(step)(State()))
         self.assertEqual(len(states), 1)
 
