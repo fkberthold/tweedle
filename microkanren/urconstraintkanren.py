@@ -202,6 +202,15 @@ class LogicVariable(object):
         """
         return isinstance(other, LogicVariable) and self.id == other.id
 
+    def __lt__(self, other):
+        """In state it's useful to display the various constraint conditions
+        in sort order because it gives a hint on how they were created.
+
+        @param: Another logic variable.
+        @return: True if this variable is less than the other.
+        """
+        return self.id < other.id
+
     def __repr__(self):
         """`var` is the function generally used to instantiate a LogicVariable
         in other implementations, so for clarity I've used it here to represent
@@ -241,7 +250,7 @@ class State(object):
     goals are processed.  I chose this because it makes it relatively easy to
     understand how new constraints are added.
     """
-    def __init__(self, constraints={}, constraintFunctions={}, count=0):
+    def __init__(self, constraints={}, constraintFunctions={}, count=0, trace=True):
         """In most of your usage, you'll instantiate State as empty, but will
         have to worry about adding new constraints and functions if you write
         a custom constraint. Fortunately we have functions further down to make
@@ -263,6 +272,7 @@ class State(object):
         self.count = count
         self.constraints = {}
         self.constraintFunctions = constraintFunctions
+        self.trace = trace
         for constraint in constraints:
             self.constraints[constraint] = frozenset(constraints[constraint])
 
@@ -294,9 +304,22 @@ class State(object):
         constraint_str = ""
         for constraint in self.constraints:
             constraint_str += "\t%s:\n" % constraint
-            for constraint_arguments in self.constraints[constraint]:
+            for constraint_arguments in sorted(list(self.constraints[constraint])):
                 constraint_str += "\t\t%s\n" % repr(constraint_arguments)
         return "\nCount: %i\nConstraints:\n%s" % (self.count, constraint_str)
+
+def note(state, note):
+    if isinstance(state.trace, list):
+        assert not(state.trace and state.trace[0] == False), "Can't add a note to a failed state trace."
+        state.trace = [note] + state.trace
+    return state
+
+def fail(state):
+    if isinstance(state.trace, list):
+        state.trace = [False] + state.trace
+    else:
+        state.trace = False
+    return state
 
 def var(identifier, name=None):
     """A wrapper that creates a LogicVariable. This is mostly to match other

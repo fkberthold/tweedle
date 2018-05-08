@@ -422,10 +422,21 @@ class Test_Is_Hanoi(Test_Hanoi_Fixtures):
         self.assertEqual(len(states), 0)
 
 class Test_Is_Step(Test_Hanoi_Fixtures):
-    def test_valid_step(self):
+    def test_valid_start(self):
         step = Link(Link(), self.start_hanoi)
         states = list(is_step(step)(State()))
+        print(states)
         self.assertEqual(len(states), 1)
+
+    def test_valid_step(self):
+        step = Link(Link(0, 1), self.start_one_step)
+        states = list(is_step(step)(State()))
+        self.assertEqual(len(states), 1)
+
+    def test_invalid_back_step(self):
+        step = Link(Link(1, 0), self.start_one_step)
+        states = list(is_step(step)(State()))
+        self.assertEqual(len(states), 0)
 
 if __name__ == "__main__":
     unittest.main()

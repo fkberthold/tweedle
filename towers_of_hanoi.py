@@ -259,8 +259,8 @@ def is_action(action):
     """
     return disj_x(eq(action, Link()),
                  call_fresh_x(lambda oldLocation, newLocation:
-                              conj(eq(action, Link(oldLocation, newLocation)),
-                                      not_emptyo(action))))
+                              conj(not_emptyo(action),
+                                  eq(action, Link(oldLocation, newLocation)))))
 
 def is_tower(tower):
     empty_tower = emptyo(tower)
@@ -298,13 +298,12 @@ def is_step(step):
     If the action is an empty link, then it's the start state."""
     return call_fresh_x(
         lambda action, newState:
-        conj_x(conso(action, newState, step),
+        conj_x(eq(step, Link(action, newState)),
                is_action(action),
                is_hanoi(newState),
                disj_x(emptyo(action),
                       call_fresh_x(
                           lambda fromIndex, toIndex, toTower:
-                          conj_x(not_emptyo(action),
-                                 conso(fromIndex, toIndex, action),
-                                 indexo(toTower, toIndex, newState),
+                          conj_x(eq(action, Link(fromIndex, toIndex)),
+                                 indexo(newState, toIndex, toTower),
                                  not_emptyo(toTower))))))
