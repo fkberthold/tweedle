@@ -39,10 +39,10 @@ class Test_Link(Test_Link_Fixtures):
         nested_result = list_to_links([["Dodo", "Mouse", "Duck"]])
 
     def test_none_is_empty_link(self):
-        self.assertTrue(None == Link())
+        self.assertTrue(() == Link())
 
     def test_empty_link_is_none(self):
-        self.assertTrue(Link() == None)
+        self.assertTrue(Link() == ())
 
 class Test_LogicVariable_Fixtures(unittest.TestCase):
     @classmethod

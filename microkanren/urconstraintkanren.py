@@ -241,7 +241,10 @@ class State(object):
     goals are processed.  I chose this because it makes it relatively easy to
     understand how new constraints are added.
     """
-    def __init__(self, constraints={}, constraintFunctions={}, count=0):
+
+    nextId = 0
+
+    def __init__(self, constraints={}, constraintFunctions={}, count=0, parentId=None, traceFun=None):
         """In most of your usage, you'll instantiate State as empty, but will
         have to worry about adding new constraints and functions if you write
         a custom constraint. Fortunately we have functions further down to make
@@ -260,11 +263,15 @@ class State(object):
         in the State.
         """
         assert count >= 0
+        self.id = State.nextId
+        State.nextId += 1
+        self.parentId = parentId
         self.count = count
         self.constraints = {}
         self.constraintFunctions = constraintFunctions
         for constraint in constraints:
             self.constraints[constraint] = frozenset(constraints[constraint])
+        self.traceFun = traceFun
 
     def __eq__(self, other):
         """When comparing two states for equality, we only compare the count and
@@ -297,6 +304,9 @@ class State(object):
             for constraint_arguments in self.constraints[constraint]:
                 constraint_str += "\t\t%s\n" % repr(constraint_arguments)
         return "\nCount: %i\nConstraints:\n%s" % (self.count, constraint_str)
+
+    def trace(self, succeeds, comment):
+        self.traceFun(self.id, self.parentId, succeeds, comment)
 
 def var(identifier, name=None):
     """A wrapper that creates a LogicVariable. This is mostly to match other
@@ -463,6 +473,18 @@ def eq(left, right):
         else:
             return mzero
     return generate(eqHelp)
+
+def trace(comment):
+    def traceHelp(state):
+        state.trace(True, comment)
+        yield state
+    return generate(traceHelp)
+
+def fail(comment):
+    def failHelp(state):
+        state.trace(False, comment)
+        yield state
+    return generate(failHelp)
 
 def make_constraint(state, fails, function, *args):
     """A small helper function for constructing new constraints, it takes care
