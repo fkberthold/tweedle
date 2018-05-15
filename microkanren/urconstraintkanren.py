@@ -306,7 +306,28 @@ class State(object):
         return "\nCount: %i\nConstraints:\n%s" % (self.count, constraint_str)
 
     def trace(self, succeeds, comment):
-        self.traceFun(self.id, self.parentId, succeeds, comment)
+        if(self.traceFun):
+            self.traceFun(self.id, self.parentId, succeeds, comment)
+
+def trace(comment):
+    def traceHelp(state):
+        state.trace(True, comment)
+        yield state
+    return generate(traceHelp)
+
+def fail(comment):
+    def failHelp(state):
+        state.trace(False, comment)
+        yield state
+    return generate(failHelp)
+
+def logger():
+    log = []
+
+    def loggerHelp(stateId, parentId, succeeds, comment):
+        log.append((stateId, parentId, succeeds, comment))
+
+    return (log, loggerHelp)
 
 def var(identifier, name=None):
     """A wrapper that creates a LogicVariable. This is mostly to match other
@@ -469,22 +490,12 @@ def eq(left, right):
         if isinstance(unified, frozenset):
             constraints = {**state.constraints, **{"eq":unified}}
             constraint_funcs = {**state.constraintFunctions, **{"eq":eq}}
-            return State(constraints, constraint_funcs, state.count)
+            state.trace(True, "Eq(%s, %s)" % (left, right))
+            return State(constraints, constraint_funcs, state.count, state.id, state.traceFun)
         else:
+            state.trace(False, "Eq(%s, %s)" % (left, right))
             return mzero
     return generate(eqHelp)
-
-def trace(comment):
-    def traceHelp(state):
-        state.trace(True, comment)
-        yield state
-    return generate(traceHelp)
-
-def fail(comment):
-    def failHelp(state):
-        state.trace(False, comment)
-        yield state
-    return generate(failHelp)
 
 def make_constraint(state, fails, function, *args):
     """A small helper function for constructing new constraints, it takes care
@@ -499,13 +510,15 @@ def make_constraint(state, fails, function, *args):
     @return: A stream containing either no state or a single state.
     """
     if fails:
+        state.trace(False, "%s%s" % (function.__name__, args))
         return mzero
     else:
         name = function.__name__
         constraint = state.constraints.get(name, frozenset())
         constraints = {**state.constraints, **{name:constraint | {args}}}
         constraint_funcs = {**state.constraintFunctions, name:function}
-        return unit(State(constraints, constraint_funcs, state.count))
+        state.trace(True, "%s%s" % (name, args))
+        return unit(State(constraints, constraint_funcs, state.count, state.id, state.traceFun))
 
 def neq(left, right):
     """Asserts that the `left` value is not equal to the `right` value.
@@ -552,7 +565,8 @@ def call_fresh(function):
         name = list(signature(function).parameters)[0]
         new_var = var(count, name)
         goal = function(new_var)
-        newState = State(state.constraints, state.constraintFunctions, count+1)
+        state.trace(True, "call_fresh(%s)" % (new_var))
+        newState = State(state.constraints, state.constraintFunctions, count+1, state.id, state.traceFun)
         yield from goal(newState)
     return generate(call_fresh_help)
 
