@@ -21,7 +21,12 @@ def call_fresh_x(f):
         new_vars = [var(number, name) for (number, name) in ids_and_params]
         fun = f(*new_vars)
         newState = State(state.constraints, state.constraintFunctions, new_c)
-        yield from fun(newState)
+        state.trace(True, "CALL_FRESH_X(%s)<IN>" % str(new_var))
+        succeeds = False
+        for state_ in fun(newState):
+            succeeds = True
+            yield state_
+        state.trace(succeeds, "CALL_FRESH_X(%s)<OUT>" % str(new_var))
     return generate(call_fresh_help)
 
 def run_x(f):
@@ -38,13 +43,17 @@ def run_x(f):
         fun = f(*new_vars)
         newState = State(state.constraints, state.constraintFunctions, new_c)
         state_generator = fun(newState)
+        state.trace(True, "CALL_FRESH_X(%s)<IN>" % str(new_var))
+        succeeds = False
         for gen_state in state_generator:
+            succeeds = True
             constraints = gen_state.constraints
             constraintFunctions = gen_state.constraintFunctions
             count = gen_state.count
             old_eq = constraints.get('eq', frozenset())
             output = [deep_walk(var, old_eq) for var in new_vars]
             yield output
+        state.trace(succeeds, "CALL_FRESH_X(%s)<OUT>" % str(new_var))
     return call_fresh_help
 
 def conj_x(*args):

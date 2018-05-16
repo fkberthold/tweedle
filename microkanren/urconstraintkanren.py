@@ -315,6 +315,16 @@ def trace(comment):
         yield state
     return generate(traceHelp)
 
+def trace_with(goal, comment):
+    def traceHelp(state):
+        state.trace(True, comment + "<IN>")
+        succeeds = False
+        for state_ in goal(state):
+            succeeds = True
+            yield state_
+        state.trace(succeeds, comment + "<OUT>")
+    return generate(traceHelp)
+
 def fail(comment):
     def failHelp(state):
         state.trace(False, comment)
@@ -328,6 +338,17 @@ def logger():
         log.append((stateId, parentId, succeeds, comment))
 
     return (log, loggerHelp)
+
+"""
+def separate_trace_streams(log):
+    if not log:
+        return []
+    streams = [(frozenset({None, log[0][0]}), [log[0]])]
+    for entry in log[1:]:
+
+    return complete_streams
+"""
+
 
 def var(identifier, name=None):
     """A wrapper that creates a LogicVariable. This is mostly to match other
@@ -565,9 +586,13 @@ def call_fresh(function):
         name = list(signature(function).parameters)[0]
         new_var = var(count, name)
         goal = function(new_var)
-        state.trace(True, "call_fresh(%s)" % (new_var))
         newState = State(state.constraints, state.constraintFunctions, count+1, state.id, state.traceFun)
-        yield from goal(newState)
+        state.trace(True, "CALL_FRESH(%s)<IN>" % str(new_var))
+        succeeds = False
+        for state_ in goal(newState):
+            succeeds = True
+            yield state_
+        state.trace(succeeds, "CALL_FRESH(%s)<OUT>" % str(new_var))
     return generate(call_fresh_help)
 
 def disj(g1, g2):
@@ -582,8 +607,9 @@ def disj(g1, g2):
     """
 
     def disj_help(state):
-        yield from mplus(g1(state), g2(state))
-    return generate(disj_help)
+        state_ = State(state.constraints, state.constraintFunctions, state.count, state.id, state.traceFun)
+        yield from mplus(g1(state_), g2(state_))
+    return trace_with(generate(disj_help), "DISJ")
 
 def conj(g1, g2):
     """Take two relations, pass the state to the first relation, then pass each
@@ -595,8 +621,9 @@ def conj(g1, g2):
     @return: A function that streams a state through both g1 and g2.
     """
     def conj_help(state):
-        yield from bind(g1, g2)(state)
-    return generate(conj_help)
+        state_ = State(state.constraints, state.constraintFunctions, state.count, state.id, state.traceFun)
+        yield from bind(g1, g2)(state_)
+    return trace_with(generate(conj_help), "CONJ")
 
 def applyConstraints(state):
     """For the given state, consecutively applies all of it's exiting
