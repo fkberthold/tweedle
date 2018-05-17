@@ -339,15 +339,20 @@ def logger():
 
     return (log, loggerHelp)
 
-"""
 def separate_trace_streams(log):
+    def asOut(inStr):
+        return inStr[:-4] + "<OUT>"
+
+    def isIn(inStr):
+        return inStr[-4:] == '<IN>'
+
     if not log:
         return []
+#    stream entry = (containedStateIds, outStack, enteredStack)
     streams = [(frozenset({None, log[0][0]}), [log[0]])]
     for entry in log[1:]:
 
     return complete_streams
-"""
 
 
 def var(identifier, name=None):
