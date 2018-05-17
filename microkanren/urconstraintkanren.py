@@ -1,3 +1,4 @@
+import itertools
 import types
 from inspect import signature
 
@@ -340,19 +341,32 @@ def logger():
     return (log, loggerHelp)
 
 def separate_trace_streams(log):
-    def asOut(inStr):
-        return inStr[:-4] + "<OUT>"
-
-    def isIn(inStr):
-        return inStr[-4:] == '<IN>'
+    def isOut(string):
+        return string[-5:] == "<OUT>"
 
     if not log:
         return []
-#    stream entry = (containedStateIds, outStack, enteredStack)
+#    stream entry = (containedStateIds, enteredStack)
     streams = [(frozenset({None, log[0][0]}), [log[0]])]
     for entry in log[1:]:
+        newStreams = []
+        (stateId, parentId, succeeds, comment) = entry
+        for stream in streams:
+            (containedStateIds, enteredStack) = stream
+            if parentId in containedStateIds:
+                if stateId in containedStateIds:
+                    newStreams.append(((containedStateIds), enteredStack + [entry]))
+                elif parentId == enteredStack[-1][0]:
+                    newStreams.append((containedStateIds.union({stateId}), enteredStack + [entry]))
+                else:
+                    base_stream = list(itertools.takewhile(lambda streamEntry: streamEntry[0] != stateId, enteredStack))
+                    newStreams.append(stream)
+                    newStreams.append(((containedStateIds), base_stream + [entry]))
+            else:
+                newStreams.append(stream)
+        streams = newStreams
 
-    return complete_streams
+    return streams
 
 
 def var(identifier, name=None):
@@ -612,8 +626,9 @@ def disj(g1, g2):
     """
 
     def disj_help(state):
-        state_ = State(state.constraints, state.constraintFunctions, state.count, state.id, state.traceFun)
-        yield from mplus(g1(state_), g2(state_))
+        state_1 = State(state.constraints, state.constraintFunctions, state.count, state.id, state.traceFun)
+        state_2 = State(state.constraints, state.constraintFunctions, state.count, state.id, state.traceFun)
+        yield from mplus(g1(state_1), g2(state_2))
     return trace_with(generate(disj_help), "DISJ")
 
 def conj(g1, g2):
