@@ -341,9 +341,6 @@ def logger():
     return (log, loggerHelp)
 
 def separate_trace_streams(log):
-    def isOut(string):
-        return string[-5:] == "<OUT>"
-
     if not log:
         return []
 #    stream entry = (containedStateIds, enteredStack)
@@ -355,18 +352,60 @@ def separate_trace_streams(log):
             (containedStateIds, enteredStack) = stream
             if parentId in containedStateIds:
                 if stateId in containedStateIds:
-                    newStreams.append(((containedStateIds), enteredStack + [entry]))
+                    newStreams.append((containedStateIds, enteredStack + [entry]))
                 elif parentId == enteredStack[-1][0]:
                     newStreams.append((containedStateIds.union({stateId}), enteredStack + [entry]))
                 else:
                     base_stream = list(itertools.takewhile(lambda streamEntry: streamEntry[1] != parentId, enteredStack))
                     newStreams.append(stream)
-                    newStreams.append(((containedStateIds), base_stream + [entry]))
+                    newStreams.append((containedStateIds.union({stateId}), base_stream + [entry]))
             else:
                 newStreams.append(stream)
         streams = newStreams
 
     return streams
+
+def stream_to_str(stream):
+    def isOut(string):
+        return string[-5:] == "<OUT>"
+
+    def isIn(string):
+        return string[-4:] == "<IN>"
+
+    spaces = ""
+    comments = ""
+    commentsSeen = []
+    for entry in stream:
+        (stateId, parentId, succeeds, comment) = entry
+        if isIn(comment):
+            comment_ = spaces + comment[:-4] + ":"
+            spaces += "  "
+        elif isOut(comment):
+            comment_ = None
+            spaces = spaces[2:]
+        elif comment in commentsSeen:
+            comment_ = None
+        elif not succeeds:
+            commentsSeen.append(comment)
+            comment_ = spaces + "##" + comment + "##"
+        else:
+            commentsSeen.append(comment)
+            comment_ = spaces + comment
+
+        if comment_:
+            comments += "\n" + comment_
+    return comments
+
+def log_to_str(log):
+    streams = separate_trace_streams(log)
+
+    string = ""
+
+    for stream in streams:
+        string += "-" * 20 + "\n"
+        string += stream_to_str(stream[1]) + "\n"
+
+    return string
 
 
 def var(identifier, name=None):
