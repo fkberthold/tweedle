@@ -20,13 +20,13 @@ def call_fresh_x(f):
         ids_and_params = zip(range(c, new_c), params)
         new_vars = [var(number, name) for (number, name) in ids_and_params]
         fun = f(*new_vars)
-        newState = State(state.constraints, state.constraintFunctions, new_c)
-        state.trace(True, "CALL_FRESH_X(%s)<IN>" % str(new_var))
+        newState = State(state.constraints, state.constraintFunctions, new_c, state.id, state.traceFun)
+        state.trace(True, "CALL_FRESH_X(%s)<IN>" % str(new_vars))
         succeeds = False
         for state_ in fun(newState):
             succeeds = True
             yield state_
-        state.trace(succeeds, "CALL_FRESH_X(%s)<OUT>" % str(new_var))
+        state.trace(succeeds, "CALL_FRESH_X(%s)<OUT>" % str(new_vars))
     return generate(call_fresh_help)
 
 def run_x(f):
@@ -41,9 +41,9 @@ def run_x(f):
         ids_and_params = zip(range(c, new_c), params)
         new_vars = [var(number, name) for (number, name) in ids_and_params]
         fun = f(*new_vars)
-        newState = State(state.constraints, state.constraintFunctions, new_c)
+        newState = State(state.constraints, state.constraintFunctions, new_c, state.id, state.traceFun)
         state_generator = fun(newState)
-        state.trace(True, "CALL_FRESH_X(%s)<IN>" % str(new_var))
+        state.trace(True, "CALL_FRESH_X(%s)<IN>" % str(new_vars))
         succeeds = False
         for gen_state in state_generator:
             succeeds = True
@@ -53,7 +53,7 @@ def run_x(f):
             old_eq = constraints.get('eq', frozenset())
             output = [deep_walk(var, old_eq) for var in new_vars]
             yield output
-        state.trace(succeeds, "CALL_FRESH_X(%s)<OUT>" % str(new_var))
+        state.trace(succeeds, "CALL_FRESH_X(%s)<OUT>" % str(new_vars))
     return call_fresh_help
 
 def conj_x(*args):
@@ -137,8 +137,10 @@ def lt(less, more):
         moreValue = walk(more, substitution)
         if not(varq(lessValue) or varq(moreValue)):
             if lessValue < moreValue:
+                state.trace(True, "lt(%s, %s)" % (lessValue, moreValue))
                 return state
             else:
+                state.trace(False, "lt(%s, %s)" % (lessValue, moreValue))
                 return mzero
         lessThans = state.constraints.get("lt", frozenset())
         if varq(lessValue):
@@ -146,24 +148,22 @@ def lt(less, more):
             if not varq(moreValue) and mostLiteral is not None:
                 if mostLiteral + 1 == moreValue:
                     return make_constraint(state, False, eq, less, mostLiteral)
-                elif mostLiteral < moreValue:
-                    return make_constraint(state, False, lt, less, more)
                 else:
-                    return mzero
+                    return make_constraint(state, mostLiteral >= moreValue, lt, less, more)
             else:
                 if moreValue in leastSet:
+                    state.trace(False, "lt(%s, %s)" % (lessValue, moreValue))
                     return mzero
         if varq(moreValue):
             (leastLiteral, mostSet) = mtWalk(moreValue, lessThans)
             if not varq(lessValue) and leastLiteral is not None:
                 if leastLiteral - 1 == lessValue:
                     return make_constraint(state, False, eq, more, leastLiteral)
-                if lessValue < leastLiteral:
-                    return make_constraint(state, False, lt, less, more)
                 else:
-                    return mzero
+                    return make_constraint(state, lessValue >= leastLiteral, lt, less, more)
             else:
                 if lessValue in mostSet:
+                    state.trace(False, "lt(%s, %s)" % (lessValue, moreValue))
                     return mzero
         return make_constraint(state, False, lt, less, more)
     return generate(ltHelp)
@@ -186,8 +186,10 @@ def incro(augend, total):
             yield from eq(augend_, total_ - 1)(state)
         else:
             if augend_ + 1 == total_:
+                state.trace(True, "incro(%s, %s)" % (augend, total))
                 yield state
             else:
+                state.trace(False, "incro(%s, %s)" % (augend, total))
                 yield from mzero
     return generate(incroHelp)
 
@@ -205,8 +207,10 @@ def addo(augend, addend, total):
 
         if varCount == 0:
             if augend_ + addend_ == total_:
+                state.trace(True, "addo(%s, %s, %s)" % (augend, addend, total))
                 yield state
             else:
+                state.trace(False, "addo(%s, %s, %s)" % (augend, addend, total))
                 yield from mzero
         elif varCount == 1:
             if varq(augend_):

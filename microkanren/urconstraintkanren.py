@@ -341,69 +341,96 @@ def logger():
     return (log, loggerHelp)
 
 def separate_trace_streams(log):
+    def isOut(string):
+        return string[-5:] == "<OUT>"
+
     if not log:
         return []
 #    stream entry = (containedStateIds, enteredStack)
-    streams = [(frozenset({None, log[0][0]}), [log[0]])]
+    streams = [[log[0]]]
     for entry in log[1:]:
         newStreams = []
         (stateId, parentId, succeeds, comment) = entry
         for stream in streams:
-            (containedStateIds, enteredStack) = stream
-            if parentId in containedStateIds:
-                if stateId in containedStateIds:
-                    newStreams.append((containedStateIds, enteredStack + [entry]))
-                elif parentId == enteredStack[-1][0]:
-                    newStreams.append((containedStateIds.union({stateId}), enteredStack + [entry]))
-                else:
-                    base_stream = list(itertools.takewhile(lambda streamEntry: streamEntry[1] != parentId, enteredStack))
+            states = {sId for (sId, _, _, _) in stream}
+            parents = {pId for (_, pId, _, _) in stream}
+            if parentId in states:
+                if stateId in states:
+                    newStreams.append(stream + [entry])
+                elif isOut(comment):
                     newStreams.append(stream)
-                    newStreams.append((containedStateIds.union({stateId}), base_stream + [entry]))
+                elif parentId in parents:
+                    base_stream = list(itertools.takewhile(lambda streamEntry: streamEntry[1] != parentId, stream))
+                    newStreams.append(stream)
+                    newStreams.append(base_stream + [entry])
+                else:
+                    newStreams.append(stream + [entry])
             else:
                 newStreams.append(stream)
         streams = newStreams
 
     return streams
 
-def stream_to_str(stream):
+def stream_to_str(stream, flatten=True):
     def isOut(string):
         return string[-5:] == "<OUT>"
 
     def isIn(string):
         return string[-4:] == "<IN>"
 
+    def sameNest(string1, string2):
+        if isOut(string1):
+            return string1[:-5] == string2[:-4]
+        elif isIn(string1):
+            return string1[:-4] == string2[:-5]
+        else:
+            return False
+
     spaces = ""
     comments = ""
     commentsSeen = []
+    fails = False
+    nestStack = []
     for entry in stream:
         (stateId, parentId, succeeds, comment) = entry
         if isIn(comment):
-            comment_ = spaces + comment[:-4] + ":"
-            spaces += "  "
+            if flatten and nestStack and comment == nestStack[-1]:
+                comment_ = None
+                nestStack.append(comment)
+            else:
+                nestStack.append(comment)
+                comment_ = spaces + comment[:-4] + ":"
+                spaces += "  "
         elif isOut(comment):
+            nestStack.pop()
             comment_ = None
-            spaces = spaces[2:]
-        elif comment in commentsSeen:
-            comment_ = None
+            if not(not(flatten) and nestStack and sameNest(comment, nestStack[-1])):
+                spaces = spaces[2:]
         elif not succeeds:
             commentsSeen.append(comment)
+            fails = True
             comment_ = spaces + "##" + comment + "##"
+        elif comment in commentsSeen:
+            comment_ = None
         else:
             commentsSeen.append(comment)
             comment_ = spaces + comment
 
         if comment_:
             comments += "\n" + comment_
-    return comments
+    if fails:
+        return "#" * 8 + "  FAILS  " + "#" * 8 + "\n" + comments
+    else:
+        return "#" * 7 + "  SUCCEEDS  " + "#" * 6 + "\n" + comments
 
-def log_to_str(log):
+def log_to_str(log, flatten=True):
     streams = separate_trace_streams(log)
 
     string = ""
 
     for stream in streams:
         string += "-" * 20 + "\n"
-        string += stream_to_str(stream[1]) + "\n"
+        string += stream_to_str(stream, flatten) + "\n"
 
     return string
 
