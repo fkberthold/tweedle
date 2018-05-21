@@ -427,5 +427,10 @@ class Test_Is_Step(Test_Hanoi_Fixtures):
         states = list(is_step(step)(State()))
         self.assertEqual(len(states), 1)
 
+    def test_to_empty_step_fails(self):
+        step = Link(Link(0, 1), self.start_hanoi)
+        states = list(is_step(step)(State()))
+        self.assertEqual(len(states), 0)
+
 if __name__ == "__main__":
     unittest.main()

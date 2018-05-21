@@ -319,5 +319,17 @@ def is_step(step):
                           lambda fromIndex, toIndex, toTower:
                           conj_x(not_emptyo(action),
                                  conso(fromIndex, toIndex, action),
-                                 indexo(toTower, toIndex, newState),
+                                 indexo(newState, toTower, toIndex),
                                  not_emptyo(toTower))))))
+
+def step_pair(stepBefore, stepAfter):
+    return conj_x(is_step(stepBefore),
+                  is_step(stepAfter),
+                  call_fresh_x(lambda actionBefore, actionFrom, actionTo, stateBefore, stateAfter:
+                               conj_x(eq(stepBefore, Link(actionBefore, stateBefore)),
+                                      eq(stepAfter, Link(Link(actionFrom, actionTo), stateAfter))
+                                      call_fresh_x(lambda beforeFrom, beforeTo, afterFrom, afterTo:
+                                                   indexo(stateBefore, actionFrom, beforeFrom)
+                                                   not_emptyo(beforeFrom)
+                                                   conso()
+                               )

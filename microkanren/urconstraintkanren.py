@@ -346,7 +346,6 @@ def separate_trace_streams(log):
 
     if not log:
         return []
-#    stream entry = (containedStateIds, enteredStack)
     streams = [[log[0]]]
     for entry in log[1:]:
         newStreams = []
