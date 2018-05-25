@@ -325,14 +325,15 @@ def is_step(step):
 def step_pair(stepBefore, stepAfter):
     return conj_x(is_step(stepBefore),
                   is_step(stepAfter),
-                  call_fresh_x(lambda actionBefore, actionFrom, actionTo, stateBefore, stateAfter:
-                       conj_x(eq(stepBefore, Link(actionBefore, stateBefore)),
-                              eq(stepAfter, Link(Link(actionFrom, actionTo), stateAfter)),
-                              call_fresh_x(lambda beforeFrom, beforeTo, afterFrom, afterTo, disc:
-                                   conj_x(indexo(stateBefore, actionFrom, beforeFrom),
-                                          not_emptyo(beforeFrom),
-                                          indexo(stateAfter, actionFrom, afterFrom),
-                                          conso(disc, afterFrom, beforeFrom),
-                                          indexo(stateBefore, actionTo, beforeTo),
-                                          indexo(stateAfter, actionTo, afterTo),
-                                          conso(disc, beforeTo, afterTo))))))
+                  call_fresh_x(lambda actionBefore, actionFromIndex, actionToIndex, stateBefore, stateAfter:
+                               conj_x(eq(stepBefore, Link(actionBefore, stateBefore)),
+                                      eq(stepAfter, Link(Link(actionFromIndex, actionToIndex), stateAfter)),
+                                      call_fresh_x(lambda beforeFromStack, beforeToStack,
+                                                          afterFromStack, afterToStack,
+                                                          movingDisc:
+                                                   indexo(stateBefore, actionFromIndex, beforeFromStack),
+                                                   indexo(stateBefore, actionToIndex, beforeToStack),
+                                                   indexo(stateAfter, actionFromIndex, afterFromStack),
+                                                   indexo(stateAfter, actionToIndex, afterToStack),
+                                                   conso(movingDisc, afterFromStack, beforeFromStack),
+                                                   conso(movingDisc, beforeToStack, afterToStack)))))
