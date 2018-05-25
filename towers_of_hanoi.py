@@ -328,12 +328,10 @@ def step_pair(stepBefore, stepAfter):
                   call_fresh_x(lambda actionBefore, actionFromIndex, actionToIndex, stateBefore, stateAfter:
                                conj_x(eq(stepBefore, Link(actionBefore, stateBefore)),
                                       eq(stepAfter, Link(Link(actionFromIndex, actionToIndex), stateAfter)),
-                                      call_fresh_x(lambda beforeFromStack, beforeToStack,
-                                                          afterFromStack, afterToStack,
-                                                          movingDisc:
-                                                   indexo(stateBefore, actionFromIndex, beforeFromStack),
+                                      call_fresh_x(lambda beforeFromStack, beforeToStack, afterFromStack, afterToStack, movingDisc:
+                                            conj_x(indexo(stateBefore, actionFromIndex, beforeFromStack),
                                                    indexo(stateBefore, actionToIndex, beforeToStack),
                                                    indexo(stateAfter, actionFromIndex, afterFromStack),
                                                    indexo(stateAfter, actionToIndex, afterToStack),
                                                    conso(movingDisc, afterFromStack, beforeFromStack),
-                                                   conso(movingDisc, beforeToStack, afterToStack)))))
+                                                   conso(movingDisc, beforeToStack, afterToStack))))))
