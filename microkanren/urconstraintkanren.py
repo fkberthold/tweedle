@@ -51,7 +51,9 @@ class Link(object):
         @param head: The value for the link.
         @param tail: The rest of the list, if any, or another value.
         """
-        if isinstance(tail, Link) and tail.is_empty():
+        if head is None:
+            self._link = ()
+        elif isinstance(tail, Link) and tail.is_empty():
             self._link = (head, ())
         else:
             self._link = (head, tail)
@@ -72,8 +74,10 @@ class Link(object):
             return True
         if not isinstance(other, Link):
             return False
-        elif self.is_empty() and other.is_empty():
-            return True
+        elif self.is_empty():
+            return other.is_empty()
+        elif other.is_empty():
+            return False
         elif self.head == other.head:
             return self.tail == other.tail
         else:
@@ -108,7 +112,7 @@ class Link(object):
 
         @return: A reasonably unique hash.
         """
-        return self.head.__hash__() + self.tail.__hash__()
+        return self._link.__hash__()
 
     def __contains__(self, elem):
         """Returns true if `elem` is part of the list that this link is the
@@ -136,11 +140,15 @@ class Link(object):
 
     @property
     def head(self):
+        assert self._link != (), "Empty Lists are headless."
         return self._link[0]
 
     @property
     def tail(self):
-        return self._link[1]
+        if self._link == ():
+            return ()
+        else:
+            return self._link[1]
 
     def is_empty(self):
         """Check if the list is `empty` which means both the `head` and `tail`
@@ -148,7 +156,7 @@ class Link(object):
 
         @return: True if empty, False otherwise.
         """
-        return self.head is None and self.tail is ()
+        return self._link == ()  # self.head is None and self.tail is ()
 
 def list_to_links(lst):
     """Linked Lists are a neat, elegant data structure...
@@ -547,6 +555,10 @@ def unify(left, right, substitution):
     elif varq(rightValue):
         return ext_s(rightValue, left, substitution)
     elif isinstance(leftValue, Link) and isinstance(rightValue, Link):
+        if leftValue.is_empty():
+            return substitution if rightValue.is_empty() else False
+        elif rightValue.is_empty():
+            return False
         headSub = unify(leftValue.head, rightValue.head, substitution)
         if headSub is not False:
             return unify(leftValue.tail, rightValue.tail, headSub)

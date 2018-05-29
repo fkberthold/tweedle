@@ -3,8 +3,11 @@ from microkanren.urconstraintkanren import *
 def deep_walk(term, substitution):
     value = walk(term, substitution)
     if isinstance(value, Link):
-        return Link(deep_walk(value.head, substitution),
-                    deep_walk(value.tail, substitution))
+        if value.is_empty():
+            return value
+        else:
+            return Link(deep_walk(value.head, substitution),
+                        deep_walk(value.tail, substitution))
     else:
         return value
 
@@ -76,15 +79,12 @@ def not_emptyo(lst):
 
 def conso(head, tail, lst):
     if varq(lst):
-        return call_fresh_x(lambda new_head, new_tail:
-                            conj_x(eq(new_head, head),
-                                   eq(new_tail, tail),
-                                   eq(lst, Link(new_head, new_tail))))
+        return trace_with(eq(lst, Link(head, tail)), "conso")
     elif isinstance(lst, Link) and not lst.is_empty():
-        return conj_x(eq(head, lst.head),
-                     eq(tail, lst.tail))
+        return trace_with(conj_x(eq(head, lst.head),
+                                 eq(tail, lst.tail)), "conso")
     else:
-        return lambda state: mzero
+        return trace_with(lambda state: mzero, "conso")
 
 def lt(less, more):
     def ltWalk(term, lessThans):
@@ -276,12 +276,12 @@ def is_action(action):
                                       not_emptyo(action))))
 
 def is_tower(tower):
-    empty_tower = emptyo(tower)
-    one_disc_tower = leno(tower, 1)
+    empty_tower = conj(trace("is emptyo"), emptyo(tower))
+    one_disc_tower = conj(trace("is one"), call_fresh(lambda disc: conso(disc, Link(), tower)))
     multi_disc_tower = call_fresh_x(
         lambda upperDisc, lowerDisc, withoutUpper, withoutLower:
-        conj_x(conso(upperDisc, withoutUpper, tower),
-               not_emptyo(withoutUpper),
+        conj_x(trace('is multi'),
+               conso(upperDisc, withoutUpper, tower),
                conso(lowerDisc, withoutLower, withoutUpper),
                lt(upperDisc, lowerDisc),
                is_tower(withoutUpper)))
@@ -327,11 +327,11 @@ def step_pair(stepBefore, stepAfter):
                   is_step(stepAfter),
                   call_fresh_x(lambda actionBefore, actionFromIndex, actionToIndex, stateBefore, stateAfter:
                                conj_x(eq(stepBefore, Link(actionBefore, stateBefore)),
-                                      eq(stepAfter, Link(Link(actionFromIndex, actionToIndex), stateAfter)),
-                                      call_fresh_x(lambda beforeFromStack, beforeToStack, afterFromStack, afterToStack, movingDisc:
-                                            conj_x(indexo(stateBefore, actionFromIndex, beforeFromStack),
-                                                   indexo(stateBefore, actionToIndex, beforeToStack),
-                                                   indexo(stateAfter, actionFromIndex, afterFromStack),
-                                                   indexo(stateAfter, actionToIndex, afterToStack),
-                                                   conso(movingDisc, afterFromStack, beforeFromStack),
-                                                   conso(movingDisc, beforeToStack, afterToStack))))))
+                                      eq(stepAfter, Link(Link(actionFromIndex, actionToIndex), stateAfter)))))
+#                                      call_fresh_x(lambda beforeFromStack, beforeToStack, afterFromStack, afterToStack, movingDisc:
+#                                            conj_x(indexo(stateBefore, actionFromIndex, beforeFromStack),
+#                                                   indexo(stateBefore, actionToIndex, beforeToStack),
+#                                                   indexo(stateAfter, actionFromIndex, afterFromStack),
+#                                                   indexo(stateAfter, actionToIndex, afterToStack),
+#                                                   conso(movingDisc, afterFromStack, beforeFromStack),
+#                                                   conso(movingDisc, beforeToStack, afterToStack))))))
