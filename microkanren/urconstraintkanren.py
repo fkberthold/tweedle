@@ -722,6 +722,76 @@ def conj(g1, g2):
         yield from bind(g1, g2)(state_)
     return trace_with(generate(conj_help), "CONJ")
 
+def for_all(value, goal):
+    """Given a `value` that may be a Logic Varible or Link and an Arity-1 `goal` that has not had
+    a value applied to it, `for_all` will do the following depending on what kind of `value` it is given:
+
+    Empty Link: Always succeeds. If there are no values to test then there are no failed values.
+    Link: Apply the `goal` to the head then apply for_all to the tail.
+    Logic Variable: Add a constraint under for_all with the given goal to the variable.
+
+    This will permit us to make assertions about lists of values without having to actually know what
+    the values are, or if they exist at all.
+
+    @param value: Either a Logic Variable or an Link
+    @param goal: A single arity goal that has not had a value applied to it.
+    @return: A function that will stream a state passing value through goal.
+    """
+    def for_all_help(state):
+        substitution = state.constraints.get("eq", frozenset())
+        value_ = walk(value, substitution)
+        if(varq(value_)):
+            return make_constraint(state, False, for_all, value_, goal)
+        elif(isinstance(value_, Link) or value_ == ()):
+            if value == () or value_.is_empty():
+                state.trace(True, "empty for_all %s" % goal)
+                return unit(state)
+            else:
+                return conj(goal(value_.head), for_all(value_.tail, goal))(state)
+        else:
+            state.trace(False, "%s for_all %s is not a Link" % (value_, goal))
+            return mzero
+    return generate(for_all_help)
+
+def between_all(value, goal):
+    """Given a 'value' that may be a Logic Variable or a Link and an Arity-2 'goal' that has not had
+    values applied to it, `between_all` verifies that the `goal` applies between each of the heads
+    of the Link in succession.
+
+    This allows us to make constraints about a list, for example that it is sorted, without knowing
+    all of its values.
+
+    @param value: Either a Logic Variable or an Link
+    @param goal: An arity-2 goal that has not had a value applied to it.
+    @return: A function that will stream a state passing value through goal.
+    """
+    def between_all_help(state):
+        substitution = state.constraints.get("eq", frozenset())
+        value_ = walk(value, substitution)
+        if(varq(value_)):
+            return make_constraint(state, False, between_all, value_, goal)
+        elif(isinstance(value_, Link) or value_ == ()):
+            if value == () or value_.is_empty():
+                state.trace(True, "empty for_all %s" % goal)
+                return unit(state)
+            else:
+                tail = walk(value_.tail, substitution)
+                if(varq(tail)):
+                    return make_constraint(state, False, between_all, value_, goal)
+                elif(isinstance(value_, Link) or value_ == ()):
+                    if value == () or value_.is_empty():
+                        state.trace(True, "empty for_all %s" % goal)
+                        return unit(state)
+                    else:
+                        return conj(goal(value_.head, tail.head), between_all(tail.tail, goal))(state)
+                else:
+                    state.trace(False, "%s for_all %s is not a Link" % (tail, goal))
+                    return mzero
+        else:
+            state.trace(False, "%s for_all %s is not a Link" % (value_, goal))
+            return mzero
+    return generate(between_all_help)
+
 def applyConstraints(state):
     """For the given state, consecutively applies all of it's exiting
     constraints to determine if a change in the state breaks one of the existing
