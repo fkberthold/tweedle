@@ -396,6 +396,25 @@ class Test_absento(Test_State_Fixtures):
         self.assertEqual(state.constraints['absento'], {('raven', var(0, 'boys'))})
         self.assertEqual(state.constraints['eq'], {(var(0, 'boys'), lst)})
 
+class Test_trace(Test_State_Fixtures):
+    def test_trace(self):
+        (log, logFun) = logger()
+        list(trace("White Rabbit")(State(traceFun=logFun)))
+        self.assertEqual("--------------------\n#######  SUCCEEDS  ######\n\nWhite Rabbit\n",log_to_str(log))
+
+    def test_fail(self):
+        (log, logFun) = logger()
+        list(fail("Whiting")(State(traceFun=logFun)))
+        streams = separate_trace_streams(log)
+        self.assertEqual(len(streams), 1)
+        self.assertEqual("########  FAILS  ########\n\n##Whiting##",stream_to_str(streams[0]))
+
+
+class Test_for_all(Test_State_Fixtures):
+    def test_for_all_empty(self):
+        states = list(for_all(Link(), lambda elem: eq(elem, 2)))
+        self.assertEqual(len(states), 1)
+
 if __name__ == "__main__":
     print("This test suite depends on macros to execute, so can't be")
     print("run independently. Please either run it through `run_tests.py`")
