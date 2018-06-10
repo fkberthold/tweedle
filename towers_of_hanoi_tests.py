@@ -312,9 +312,9 @@ class Test_Indexo(Test_Conso_Fixtures):
         self.assertEqual(states[0], [0])
 
     def test_indexo_just_one_lst_var(self):
-        states = list(run_x(lambda lst: indexo(lst, 'Alice', 0))(State()))
+        states = list(call_fresh(lambda lst: indexo(lst, 'Alice', 0))(State()))
         self.assertEqual(len(states), 1)
-        self.assertEqual(states[0][0].head, 'Alice')
+        self.assertEqual(states[0].constraints['indexo'], {(var(0, 'lst'), 'Alice', 0)})
 
     def test_indexo_second_elem_var(self):
         states = list(run_x(lambda name: indexo(list_to_links(['Hatter', 'Hare', 'Dormouse']), name, 1))(State()))
@@ -387,6 +387,10 @@ class Test_Is_Action(Test_Conso_Fixtures):
         states = list(is_action(Link())(State()))
         self.assertEqual(len(states), 1)
 
+    def test_var_action(self):
+        states = list(call_fresh(lambda action: is_action(action))(State()))
+        self.assertEqual(len(states), 2)
+
     def test_not_empty_action(self):
         states = list(is_action(Link(3, 4))(State()))
         self.assertEqual(len(states), 1)
@@ -398,6 +402,10 @@ class Test_Is_Tower(Test_Hanoi_Fixtures):
 
     def test_part_tower(self):
         states = list(is_tower(self.part_tower)(State()))
+        self.assertEqual(len(states), 1)
+
+    def test_var_tower(self):
+        states = list(call_fresh(lambda tower: is_tower(tower))(State()))
         self.assertEqual(len(states), 1)
 
     def test_empty_tower(self):
@@ -430,6 +438,19 @@ class Test_Is_Step(Test_Hanoi_Fixtures):
     def test_to_empty_step_fails(self):
         step = Link(Link(0, 1), self.start_hanoi)
         states = list(is_step(step)(State()))
+        self.assertEqual(len(states), 0)
+
+class Test_Is_Step_Pair(Test_Hanoi_Fixtures):
+    def test_valid_pair(self):
+        step1 = Link(Link(), self.start_hanoi)
+        step2 = Link(Link(0,1), self.start_one_step)
+        states = list(step_pair(step1, step2)(State()))
+        self.assertEqual(len(states), 1)
+
+    def test_invalid_pair(self):
+        step1 = Link(Link(), self.start_hanoi)
+        step2 = Link(Link(0,1), self.start_hanoi)
+        states = list(step_pair(step1, step2)(State()))
         self.assertEqual(len(states), 0)
 
 if __name__ == "__main__":

@@ -290,7 +290,7 @@ class State(object):
         @param other: The state being compared to.
         @return: True if both the counts and constraints are the same.
         """
-        assert isinstance(other, State)
+        assert isinstance(other, State), "Other should be a State but is: %s" % str(type(other))
         if self.count == other.count and self.constraints == other.constraints:
             return True
         else:
@@ -585,12 +585,29 @@ def generate(goal):
             for genState in state:
                 result = goal(genState)
                 if isinstance(result, State):
-                    yield result
+                    if result == genState:
+                        yield result
+                    else:
+                        yield from applyConstraints(result)
                 else:
-                    yield from result
+                    for new_result in result:
+                        if new_result == genState:
+                            yield new_result
+                        else:
+                            yield from applyConstraints(new_result)
         else:
             result = goal(state)
-            yield from applyConstraints(result)
+            try:
+                for genState in result:
+                    if genState == state:
+                        yield genState
+                    else:
+                        yield from applyConstraints(genState)
+            except TypeError as err: # This is a hack because iterators are a pain to check for.
+                if result == state:
+                    yield result
+                else:
+                    yield from applyConstraints(result)
     return generate_help
 
 def eq(left, right):
@@ -660,14 +677,8 @@ def absento(elem, lst):
     @param lst: A value that could either be a list or individual element.
     @return: A function that takes a state and returns a stream of states.
     """
-    def absentoHelp(state):
-        substitution = state.constraints.get("eq", frozenset())
-        elemValue = walk(elem, substitution)
-        lstValue = walk(lst, substitution)
-        fails = any([elemValue == lstValue,
-                     not varq(lstValue) and elemValue in lstValue])
-        return make_constraint(state, fails, absento, elem, lst)
-    return generate(absentoHelp)
+    return conj(neq(elem, lst),
+                for_all(lst, lambda lstElem: neq(lstElem, elem)))
 
 def call_fresh(function):
     """call_fresh is used to instantiate new variables in the logic system.
@@ -743,11 +754,44 @@ def for_all(value, goal):
         if(varq(value_)):
             return make_constraint(state, False, for_all, value_, goal)
         elif(isinstance(value_, Link) or value_ == ()):
-            if value == () or value_.is_empty():
+            if value_ == () or value_.is_empty():
                 state.trace(True, "empty for_all %s" % goal)
                 return unit(state)
             else:
                 return conj(goal(value_.head), for_all(value_.tail, goal))(state)
+        else:
+            state.trace(False, "%s for_all %s is not a Link" % (value_, goal))
+            return mzero
+    return generate(for_all_help)
+
+def for_any(value, goal):
+    """Given a `value` that may be a Logic Varible or Link and an Arity-1 `goal` that has not had
+    a value applied to it, `for_any` will do the following depending on what kind of `value` it is given:
+
+    Empty Link: Always fails. The goal must be true for at least one item, if there are no item
+    then it must fail.
+    Link: Apply the `goal` to the head, if it's true then succeeds, but still perfoms a disjunction
+    on the remainder of the list.
+    Logic Variable: Add a constraint under for_any with the given goal to the variable.
+
+    This will permit us to make assertions about lists of values without having to actually know what
+    the values are, or if they exist at all.
+
+    @param value: Either a Logic Variable or an Link
+    @param goal: A single arity goal that has not had a value applied to it.
+    @return: A function that will stream a state passing value through goal.
+    """
+    def for_all_help(state):
+        substitution = state.constraints.get("eq", frozenset())
+        value_ = walk(value, substitution)
+        if(varq(value_)):
+            return make_constraint(state, False, for_any, value_, goal)
+        elif(isinstance(value_, Link) or value_ == ()):
+            if value_ == () or value_.is_empty():
+                state.trace(False, "empty for_any %s" % goal)
+                return mzero
+            else:
+                return disj(goal(value_.head), for_any(value_.tail, goal))(state)
         else:
             state.trace(False, "%s for_all %s is not a Link" % (value_, goal))
             return mzero
@@ -771,24 +815,24 @@ def between_all(value, goal):
         if(varq(value_)):
             return make_constraint(state, False, between_all, value_, goal)
         elif(isinstance(value_, Link) or value_ == ()):
-            if value == () or value_.is_empty():
-                state.trace(True, "empty for_all %s" % goal)
+            if value_ == () or value_.is_empty():
+                state.trace(True, "empty between_all %s" % goal)
                 return unit(state)
             else:
                 tail = walk(value_.tail, substitution)
                 if(varq(tail)):
                     return make_constraint(state, False, between_all, value_, goal)
-                elif(isinstance(value_, Link) or value_ == ()):
-                    if value == () or value_.is_empty():
-                        state.trace(True, "empty for_all %s" % goal)
+                elif(isinstance(tail, Link) or tail == ()):
+                    if tail == () or tail.is_empty():
+                        state.trace(True, "empty between_all %s" % goal)
                         return unit(state)
                     else:
-                        return conj(goal(value_.head, tail.head), between_all(tail.tail, goal))(state)
+                        return conj(goal(value_.head, tail.head), between_all(tail, goal))(state)
                 else:
-                    state.trace(False, "%s for_all %s is not a Link" % (tail, goal))
+                    state.trace(False, "%s between_all %s is not a Link" % (tail, goal))
                     return mzero
         else:
-            state.trace(False, "%s for_all %s is not a Link" % (value_, goal))
+            state.trace(False, "%s between_all %s is not a Link" % (value_, goal))
             return mzero
     return generate(between_all_help)
 

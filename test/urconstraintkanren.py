@@ -366,8 +366,6 @@ class Test_absento(Test_State_Fixtures):
         states = list(call_fresh(lambda boys: absento('raven', boys))(self.empty))
         self.assertEqual(len(states), 1)
         state = states[0]
-        self.assertEqual(len(state.constraints), 1)
-        self.assertEqual(state.constraints['absento'], {('raven', var(0, 'boys'))})
 
     def test_fail_scalar_eq_first(self):
         states = list(call_fresh(lambda girl: conj(eq('alice', girl), absento('alice', girl)))(self.empty))
@@ -391,16 +389,12 @@ class Test_absento(Test_State_Fixtures):
         lst = list_to_links(['dum', 'dee'])
         states = list(call_fresh(lambda boys: conj(absento('raven', boys), eq(lst, boys)))(self.empty))
         self.assertEqual(len(states), 1)
-        state = states[0]
-        self.assertEqual(len(state.constraints), 2)
-        self.assertEqual(state.constraints['absento'], {('raven', var(0, 'boys'))})
-        self.assertEqual(state.constraints['eq'], {(var(0, 'boys'), lst)})
 
 class Test_trace(Test_State_Fixtures):
     def test_trace(self):
         (log, logFun) = logger()
-        list(trace("White Rabbit")(State(traceFun=logFun)))
-        self.assertEqual("--------------------\n#######  SUCCEEDS  ######\n\nWhite Rabbit\n",log_to_str(log))
+        list(disj(trace("Oysters"), conj(trace("Walrus"), trace("Carpenter")))(State(traceFun=logFun)))
+        self.assertEqual("--------------------\n#######  SUCCEEDS  ######\n\nDISJ:\n  Oysters\n--------------------\n#######  SUCCEEDS  ######\n\nDISJ:\n  CONJ:\n    Walrus\n    Carpenter\n" ,log_to_str(log))
 
     def test_fail(self):
         (log, logFun) = logger()
@@ -410,10 +404,47 @@ class Test_trace(Test_State_Fixtures):
         self.assertEqual("########  FAILS  ########\n\n##Whiting##",stream_to_str(streams[0]))
 
 
+
 class Test_for_all(Test_State_Fixtures):
     def test_for_all_empty(self):
-        states = list(for_all(Link(), lambda elem: eq(elem, 2)))
+        states = list(for_all(Link(), lambda elem: eq(elem, 2))(State()))
         self.assertEqual(len(states), 1)
+
+    def test_for_all_const_match(self):
+        states = list(for_all(Link(2), lambda elem: eq(elem, 2))(State()))
+        self.assertEqual(len(states), 1)
+
+    def test_for_all_var_list(self):
+        states = list(call_fresh(lambda lst: for_all(lst, lambda elem: eq(elem, 2)))(State()))
+        self.assertEqual(len(states), 1)
+
+    def test_for_all_not_list(self):
+        states = list(for_all(2, lambda elem: eq(elem, 2))(State()))
+        self.assertEqual(len(states), 0)
+
+    def test_for_all_fails(self):
+        states = list(call_fresh(lambda color: conj(for_all(Link(color), lambda elem: eq(elem, 'red')),
+                                                    eq(color, 'white')))(State()))
+        self.assertEqual(len(states), 0)
+
+    def test_for_all_fails_list_var(self):
+        states = list(call_fresh(lambda colors: conj(for_all(colors, lambda elem: eq(elem, 'red')),
+                                                     eq(colors, Link('white'))))(State()))
+        self.assertEqual(len(states), 0)
+
+class Test_between_all(Test_State_Fixtures):
+    def test_var_list(self):
+        states = list(call_fresh(lambda lst: between_all(lst, eq))(State()))
+        self.assertEqual(len(states), 1)
+
+    def test_succeeds(self):
+        states = list(call_fresh(lambda elem: between_all(list_to_links([2, elem, 2]), eq))(State()))
+        self.assertEqual(len(states), 1)
+
+    def test_fails(self):
+        states = list(call_fresh(lambda elem: between_all(list_to_links([2, elem, 3]), eq))(State()))
+        self.assertEqual(len(states), 0)
+
 
 if __name__ == "__main__":
     print("This test suite depends on macros to execute, so can't be")
