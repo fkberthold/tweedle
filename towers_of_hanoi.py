@@ -372,9 +372,9 @@ def is_tower(tower):
 def is_hanoi(hanoi):
     """A set of hanoi towers must have at least 3 towers total. Anything less
     will only work for special cases, so we disallow them."""
-    more_than_2 = call_fresh_x(lambda length:
-                               conj(leno(hanoi, length), gt(length, 2)))
-    return conj_x(more_than_2,
+    is_3 = call_fresh_x(lambda tower1, tower2, tower3:
+                        eq(hanoi, list_to_links([tower1, tower2, tower3])))
+    return conj_x(is_3,
                   for_all(hanoi, is_tower))
 
 def is_step(step):
@@ -424,10 +424,10 @@ def step_pair(stepBefore, stepAfter):
                                                    indexo(stateAfter, afterToStack, actionToIndex),
                                                    conso(movingDisc, afterFromStack, beforeFromStack),
                                                    conso(movingDisc, beforeToStack, afterToStack))),
-                                      leno(stateBefore, towers),
-                                      leno(stateAfter, towers),
-                                      hanoi_size(stateAfter, discs),
-                                      hanoi_size(stateBefore, discs))))
+                                      leno(stateBefore, 3),
+                                      leno(stateAfter, 3),
+                                      hanoi_size(stateAfter, 3),
+                                      hanoi_size(stateBefore, 3))))
 
 def hanoi_path(path):
     return between_all(path, step_pair)
