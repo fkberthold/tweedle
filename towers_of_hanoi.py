@@ -23,13 +23,11 @@ def call_fresh_x(f):
         ids_and_params = zip(range(c, new_c), params)
         new_vars = [var(number, name) for (number, name) in ids_and_params]
         fun = f(*new_vars)
-        newState = State(state.constraints, state.constraintFunctions, new_c, state.id, state.traceFun)
-        state.trace(True, "CALL_FRESH_X(%s)<IN>" % str(new_vars))
+        newState = State(state.constraints, state.constraintFunctions, new_c, state.id)
         succeeds = False
         for state_ in fun(newState):
             succeeds = True
             yield state_
-        state.trace(succeeds, "CALL_FRESH_X(%s)<OUT>" % str(new_vars))
     return generate(call_fresh_help)
 
 def run_x(f):
@@ -44,9 +42,8 @@ def run_x(f):
         ids_and_params = zip(range(c, new_c), params)
         new_vars = [var(number, name) for (number, name) in ids_and_params]
         fun = f(*new_vars)
-        newState = State(state.constraints, state.constraintFunctions, new_c, state.id, state.traceFun)
+        newState = State(state.constraints, state.constraintFunctions, new_c, state.id)
         state_generator = fun(newState)
-        state.trace(True, "CALL_FRESH_X(%s)<IN>" % str(new_vars))
         succeeds = False
         for gen_state in state_generator:
             succeeds = True
@@ -56,7 +53,6 @@ def run_x(f):
             old_eq = constraints.get('eq', frozenset())
             output = [deep_walk(var, old_eq) for var in new_vars]
             yield output
-        state.trace(succeeds, "CALL_FRESH_X(%s)<OUT>" % str(new_vars))
     return call_fresh_help
 
 def conj_x(*args):
@@ -79,12 +75,12 @@ def not_emptyo(lst):
 
 def conso(head, tail, lst):
     if varq(lst):
-        return trace_with(eq(lst, Link(head, tail)), "conso")
+        return eq(lst, Link(head, tail))
     elif isinstance(lst, Link) and not lst.is_empty():
-        return trace_with(conj(eq(head, lst.head),
-                               eq(tail, lst.tail)), "conso")
+        return conj(eq(head, lst.head),
+                               eq(tail, lst.tail))
     else:
-        return trace_with(lambda state: mzero, "conso")
+        return (lambda state: mzero)
 
 def lt(less, more):
     def ltWalk(term, lessThans):
@@ -137,10 +133,8 @@ def lt(less, more):
         moreValue = walk(more, substitution)
         if not(varq(lessValue) or varq(moreValue)):
             if lessValue < moreValue:
-                state.trace(True, "lt(%s, %s)" % (lessValue, moreValue))
                 return state
             else:
-                state.trace(False, "lt(%s, %s)" % (lessValue, moreValue))
                 return mzero
         lessThans = state.constraints.get("lt", frozenset())
         if varq(lessValue):
@@ -152,7 +146,6 @@ def lt(less, more):
                     return make_constraint(state, mostLiteral >= moreValue, lt, less, more)
             else:
                 if moreValue in leastSet:
-                    state.trace(False, "lt(%s, %s)" % (lessValue, moreValue))
                     return mzero
         if varq(moreValue):
             (leastLiteral, mostSet) = mtWalk(moreValue, lessThans)
@@ -163,7 +156,6 @@ def lt(less, more):
                     return make_constraint(state, lessValue >= leastLiteral, lt, less, more)
             else:
                 if lessValue in mostSet:
-                    state.trace(False, "lt(%s, %s)" % (lessValue, moreValue))
                     return mzero
         return make_constraint(state, False, lt, less, more)
     return generate(ltHelp)
@@ -186,10 +178,8 @@ def incro(augend, total):
             yield from eq(augend_, total_ - 1)(state)
         else:
             if augend_ + 1 == total_:
-                state.trace(True, "incro(%s, %s)" % (augend, total))
                 yield state
             else:
-                state.trace(False, "incro(%s, %s)" % (augend, total))
                 yield from mzero
     return generate(incroHelp)
 
@@ -209,10 +199,8 @@ def addo(augend, addend, total):
 
         if varCount == 0:
             if augend_ + addend_ == total_:
-                state.trace(True, "addo(%s, %s, %s)" % (augend, addend, total))
                 yield state
             else:
-                state.trace(False, "addo(%s, %s, %s)" % (augend, addend, total))
                 yield from mzero
         elif varCount == 1:
             if varq(augend_):
@@ -238,7 +226,7 @@ def leno(lst, length):
             var_number = state.count - 1
             for var_number in range(state.count, state.count + length_):
                 new_list = Link(var(var_number), new_list)
-            newState = State(state.constraints, state.constraintFunctions, var_number + 1, state.id, state.traceFun)
+            newState = State(state.constraints, state.constraintFunctions, var_number + 1, state.id)
             yield from eq(lst_, new_list)(newState)
         else:
             temp_lst = lst_
@@ -336,7 +324,6 @@ def for_last(value, goal):
             return make_constraint(state, False, for_last, value_, goal)
         elif(isinstance(value_, Link) or value_ == ()):
             if value == () or value_.is_empty():
-                state.trace(False, "empty for_last %s can't apply" % goal)
                 return mzero
             else:
                 tail = walk(value_.tail, substitution)
@@ -348,10 +335,8 @@ def for_last(value, goal):
                     else:
                         return for_last(tail, goal)(state)
                 else:
-                    state.trace(False, "%s for_last %s is not a Link" % (tail, goal))
                     return mzero
         else:
-            state.trace(False, "%s for_last %s is not a Link" % (value_, goal))
             return mzero
     return generate(for_last_help)
 

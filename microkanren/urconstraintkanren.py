@@ -253,7 +253,7 @@ class State(object):
 
     nextId = 0
 
-    def __init__(self, constraints={}, constraintFunctions={}, count=0, parentId=None, traceFun=None):
+    def __init__(self, constraints={}, constraintFunctions={}, count=0, parentId=None):
         """In most of your usage, you'll instantiate State as empty, but will
         have to worry about adding new constraints and functions if you write
         a custom constraint. Fortunately we have functions further down to make
@@ -280,7 +280,6 @@ class State(object):
         self.constraintFunctions = constraintFunctions
         for constraint in constraints:
             self.constraints[constraint] = frozenset(constraints[constraint])
-        self.traceFun = traceFun
 
     def __eq__(self, other):
         """When comparing two states for equality, we only compare the count and
@@ -313,133 +312,6 @@ class State(object):
             for constraint_arguments in self.constraints[constraint]:
                 constraint_str += "\t\t%s\n" % repr(constraint_arguments)
         return "\nCount: %i\nConstraints:\n%s" % (self.count, constraint_str)
-
-    def trace(self, succeeds, comment):
-        if(self.traceFun):
-            self.traceFun(self.id, self.parentId, succeeds, comment)
-
-def trace(comment):
-    def traceHelp(state):
-        state.trace(True, comment)
-        yield state
-    return generate(traceHelp)
-
-def trace_with(goal, comment):
-    def traceHelp(state):
-        state.trace(True, comment + "<IN>")
-        succeeds = False
-        for state_ in goal(state):
-            succeeds = True
-            yield state_
-        state.trace(succeeds, comment + "<OUT>")
-    return generate(traceHelp)
-
-def fail(comment):
-    def failHelp(state):
-        state.trace(False, comment)
-        yield state
-    return generate(failHelp)
-
-def logger():
-    log = []
-
-    def loggerHelp(stateId, parentId, succeeds, comment):
-        log.append((stateId, parentId, succeeds, comment))
-
-    return (log, loggerHelp)
-
-def separate_trace_streams(log):
-    def isOut(string):
-        return string[-5:] == "<OUT>"
-
-    if not log:
-        return []
-    streams = [[log[0]]]
-    for entry in log[1:]:
-        newStreams = []
-        (stateId, parentId, succeeds, comment) = entry
-        for stream in streams:
-            states = {sId for (sId, _, _, _) in stream}
-            parents = {pId for (_, pId, _, _) in stream}
-            if parentId in states:
-                if stateId in states:
-                    newStreams.append(stream + [entry])
-                elif isOut(comment):
-                    newStreams.append(stream)
-                elif parentId in parents:
-                    base_stream = list(itertools.takewhile(lambda streamEntry: streamEntry[1] != parentId, stream))
-                    newStreams.append(stream)
-                    newStreams.append(base_stream + [entry])
-                else:
-                    newStreams.append(stream + [entry])
-            else:
-                newStreams.append(stream)
-        streams = newStreams
-
-    return streams
-
-def stream_to_str(stream, flatten=True):
-    def isOut(string):
-        return string[-5:] == "<OUT>"
-
-    def isIn(string):
-        return string[-4:] == "<IN>"
-
-    def sameNest(string1, string2):
-        if isOut(string1):
-            return string1[:-5] == string2[:-4]
-        elif isIn(string1):
-            return string1[:-4] == string2[:-5]
-        else:
-            return False
-
-    spaces = ""
-    comments = ""
-    commentsSeen = []
-    fails = False
-    nestStack = []
-    for entry in stream:
-        (stateId, parentId, succeeds, comment) = entry
-        if isIn(comment):
-            if flatten and nestStack and comment == nestStack[-1]:
-                comment_ = None
-                nestStack.append(comment)
-            else:
-                nestStack.append(comment)
-                comment_ = spaces + comment[:-4] + ":"
-                spaces += "  "
-        elif isOut(comment):
-            nestStack.pop()
-            comment_ = None
-            if not(not(flatten) and nestStack and sameNest(comment, nestStack[-1])):
-                spaces = spaces[2:]
-        elif not succeeds:
-            commentsSeen.append(comment)
-            fails = True
-            comment_ = spaces + "##" + comment + "##"
-        elif comment in commentsSeen:
-            comment_ = None
-        else:
-            commentsSeen.append(comment)
-            comment_ = spaces + comment
-
-        if comment_:
-            comments += "\n" + comment_
-    if fails:
-        return "#" * 8 + "  FAILS  " + "#" * 8 + "\n" + comments
-    else:
-        return "#" * 7 + "  SUCCEEDS  " + "#" * 6 + "\n" + comments
-
-def log_to_str(log, flatten=True):
-    streams = separate_trace_streams(log)
-
-    string = ""
-
-    for stream in streams:
-        string += "-" * 20 + "\n"
-        string += stream_to_str(stream, flatten) + "\n"
-
-    return string
 
 
 def var(identifier, name=None):
@@ -624,10 +496,8 @@ def eq(left, right):
         if isinstance(unified, frozenset):
             constraints = {**state.constraints, **{"eq":unified}}
             constraint_funcs = {**state.constraintFunctions, **{"eq":eq}}
-            state.trace(True, "Eq(%s, %s)" % (left, right))
-            return State(constraints, constraint_funcs, state.count, state.id, state.traceFun)
+            return State(constraints, constraint_funcs, state.count, state.id)
         else:
-            state.trace(False, "Eq(%s, %s)" % (left, right))
             return mzero
     return generate(eqHelp)
 
@@ -644,15 +514,13 @@ def make_constraint(state, fails, function, *args):
     @return: A stream containing either no state or a single state.
     """
     if fails:
-        state.trace(False, "%s%s" % (function.__name__, args))
         return mzero
     else:
         name = function.__name__
         constraint = state.constraints.get(name, frozenset())
         constraints = {**state.constraints, **{name:constraint | {args}}}
         constraint_funcs = {**state.constraintFunctions, name:function}
-        state.trace(True, "%s%s" % (name, args))
-        return unit(State(constraints, constraint_funcs, state.count, state.id, state.traceFun))
+        return unit(State(constraints, constraint_funcs, state.count, state.id))
 
 def neq(left, right):
     """Asserts that the `left` value is not equal to the `right` value.
@@ -693,13 +561,11 @@ def call_fresh(function):
         name = list(signature(function).parameters)[0]
         new_var = var(count, name)
         goal = function(new_var)
-        newState = State(state.constraints, state.constraintFunctions, count+1, state.id, state.traceFun)
-        state.trace(True, "CALL_FRESH(%s)<IN>" % str(new_var))
+        newState = State(state.constraints, state.constraintFunctions, count+1, state.id)
         succeeds = False
         for state_ in goal(newState):
             succeeds = True
             yield state_
-        state.trace(succeeds, "CALL_FRESH(%s)<OUT>" % str(new_var))
     return generate(call_fresh_help)
 
 def disj(g1, g2):
@@ -714,10 +580,10 @@ def disj(g1, g2):
     """
 
     def disj_help(state):
-        state_1 = State(state.constraints, state.constraintFunctions, state.count, state.id, state.traceFun)
-        state_2 = State(state.constraints, state.constraintFunctions, state.count, state.id, state.traceFun)
+        state_1 = State(state.constraints, state.constraintFunctions, state.count, state.id)
+        state_2 = State(state.constraints, state.constraintFunctions, state.count, state.id)
         yield from mplus(g1(state_1), g2(state_2))
-    return trace_with(generate(disj_help), "DISJ")
+    return generate(disj_help)
 
 def conj(g1, g2):
     """Take two relations, pass the state to the first relation, then pass each
@@ -729,9 +595,9 @@ def conj(g1, g2):
     @return: A function that streams a state through both g1 and g2.
     """
     def conj_help(state):
-        state_ = State(state.constraints, state.constraintFunctions, state.count, state.id, state.traceFun)
+        state_ = State(state.constraints, state.constraintFunctions, state.count, state.id)
         yield from bind(g1, g2)(state_)
-    return trace_with(generate(conj_help), "CONJ")
+    return generate(conj_help)
 
 def for_all(value, goal):
     """Given a `value` that may be a Logic Varible or Link and an Arity-1 `goal` that has not had
@@ -755,12 +621,10 @@ def for_all(value, goal):
             return make_constraint(state, False, for_all, value_, goal)
         elif(isinstance(value_, Link) or value_ == ()):
             if value_ == () or value_.is_empty():
-                state.trace(True, "empty for_all %s" % goal)
                 return unit(state)
             else:
                 return conj(goal(value_.head), for_all(value_.tail, goal))(state)
         else:
-            state.trace(False, "%s for_all %s is not a Link" % (value_, goal))
             return mzero
     return generate(for_all_help)
 
@@ -788,12 +652,10 @@ def for_any(value, goal):
             return make_constraint(state, False, for_any, value_, goal)
         elif(isinstance(value_, Link) or value_ == ()):
             if value_ == () or value_.is_empty():
-                state.trace(False, "empty for_any %s" % goal)
                 return mzero
             else:
                 return disj(goal(value_.head), for_any(value_.tail, goal))(state)
         else:
-            state.trace(False, "%s for_all %s is not a Link" % (value_, goal))
             return mzero
     return generate(for_all_help)
 
@@ -816,7 +678,6 @@ def between_all(value, goal):
             return make_constraint(state, False, between_all, value_, goal)
         elif(isinstance(value_, Link) or value_ == ()):
             if value_ == () or value_.is_empty():
-                state.trace(True, "empty between_all %s" % goal)
                 return unit(state)
             else:
                 tail = walk(value_.tail, substitution)
@@ -824,15 +685,12 @@ def between_all(value, goal):
                     return make_constraint(state, False, between_all, value_, goal)
                 elif(isinstance(tail, Link) or tail == ()):
                     if tail == () or tail.is_empty():
-                        state.trace(True, "empty between_all %s" % goal)
                         return unit(state)
                     else:
                         return conj(goal(value_.head, tail.head), between_all(tail, goal))(state)
                 else:
-                    state.trace(False, "%s between_all %s is not a Link" % (tail, goal))
                     return mzero
         else:
-            state.trace(False, "%s between_all %s is not a Link" % (value_, goal))
             return mzero
     return generate(between_all_help)
 
