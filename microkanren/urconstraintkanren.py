@@ -457,13 +457,13 @@ def generate(goal):
             for genState in state:
                 result = goal(genState)
                 if isinstance(result, State):
-                    if result == genState:
+                    if result.constraints == genState.constraints:
                         yield result
                     else:
                         yield from applyConstraints(result)
                 else:
                     for new_result in result:
-                        if new_result == genState:
+                        if new_result.constraints == genState.constraints:
                             yield new_result
                         else:
                             yield from applyConstraints(new_result)
@@ -471,12 +471,12 @@ def generate(goal):
             result = goal(state)
             try:
                 for genState in result:
-                    if genState == state:
+                    if genState.constraints == state.constraints:
                         yield genState
                     else:
                         yield from applyConstraints(genState)
             except TypeError as err: # This is a hack because iterators are a pain to check for.
-                if result == state:
+                if result.constraints == state.constraints:
                     yield result
                 else:
                     yield from applyConstraints(result)
