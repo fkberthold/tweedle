@@ -373,6 +373,22 @@ def walk(term, substitution):
     else:
         return term
 
+def deep_walk(term, substitution):
+    value = walk(term, substitution)
+    if isinstance(value, Link):
+        tail = value
+        lst = []
+        while not (tail.is_empty() or varq(tail)):
+            head = deep_walk(tail.head, substitution)
+            lst.append(head)
+            tail = walk(tail.tail, substitution)
+        lst.reverse()
+        for val in lst:
+            tail = Link(val, tail)
+        return tail
+    else:
+        return value
+
 def ext_s(variable, value, substitution):
     """ext_s is a helper function for eq, without checking for duplicates or
     contradiction it adds a variable/value pair to the given substitution.
@@ -457,29 +473,19 @@ def generate(goal):
             for genState in state:
                 result = goal(genState)
                 if isinstance(result, State):
-                    if result.constraints == genState.constraints:
-                        yield result
-                    else:
-                        yield from applyConstraints(result)
+                    yield result
                 else:
                     for new_result in result:
-                        if new_result.constraints == genState.constraints:
-                            yield new_result
-                        else:
-                            yield from applyConstraints(new_result)
+                        yield new_result
         else:
             result = goal(state)
             try:
                 for genState in result:
-                    if genState.constraints == state.constraints:
-                        yield genState
-                    else:
-                        yield from applyConstraints(genState)
+                    yield genState
             except TypeError as err: # This is a hack because iterators are a pain to check for.
-                if result.constraints == state.constraints:
-                    yield result
-                else:
-                    yield from applyConstraints(result)
+                yield result
+            except:
+                raise
     return generate_help
 
 def eq(left, right):
@@ -568,6 +574,45 @@ def call_fresh(function):
             yield state_
     return generate(call_fresh_help)
 
+def call(f):
+    def deep_get(val, state):
+        constraints = state.constraints
+        eq = constraints.get('eq', frozenset())
+        return deep_walk(var, eq)
+
+    def call_help(state):
+        c = state.count
+        params = signature(f).parameters
+        arg_count = len(params)
+        new_c = c + arg_count
+        ids_and_params = zip(range(c, new_c), params)
+        new_vars = [var(number, name) for (number, name) in ids_and_params]
+        fun = f(*new_vars)
+        newState = State(state.constraints, state.constraintFunctions, new_c, state.id)
+        state_generator = fun(newState)
+        stateStreams = [state_generator]
+        newStreams = []
+        while stateStreams:
+            for stateStream in stateStreams:
+                try:
+                    resultBase = stateStream.__next__()
+                    baseArgResults = [deep_get(var, resultBase) for var in new_vars]
+                    resultStream = applyConstraints(resultBase)
+                    for result in resultStream:
+                        argResults = [deep_get(var, result) for var in new_vars]
+                        if baseArgResults == argResults:
+                            yield result
+                        else:
+                            newStreams.append(unit(result))
+                    newStreams.append(stateStream)
+                except StopIteration:
+                        pass
+            stateStreams = newStreams
+            newStreams = []
+
+    return call_help
+
+
 def disj(g1, g2):
     """Take two relations, pass the state to each of them separately, yield a
     stream of states alternately from each relation.  This is equivalent to an
@@ -618,7 +663,11 @@ def for_all(value, goal):
         substitution = state.constraints.get("eq", frozenset())
         value_ = walk(value, substitution)
         if(varq(value_)):
-            return make_constraint(state, False, for_all, value_, goal)
+            for_all_constraints = state.constraints.get("for_all", frozenset())
+            if not([c for c in for_all_constraints if c[0] == value_]):
+                return make_constraint(state, False, for_all, value_, goal)
+            else:
+                return unit(state)
         elif(isinstance(value_, Link) or value_ == ()):
             if value_ == () or value_.is_empty():
                 return unit(state)

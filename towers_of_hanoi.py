@@ -43,7 +43,7 @@ def run_x(f):
         new_vars = [var(number, name) for (number, name) in ids_and_params]
         fun = f(*new_vars)
         newState = State(state.constraints, state.constraintFunctions, new_c, state.id)
-        state_generator = fun(newState)
+        state_generator = call(fun)(newState)
         succeeds = False
         for gen_state in state_generator:
             succeeds = True
@@ -389,26 +389,25 @@ def hanoi_size(hanoi, size):
 
 def equal_except_from_to(list1, list2, toIndex, fromIndex):
     """This is is a helper function for step_pair"""
-    return call_fresh_x(lambda l1without_to, l2without_to, both_without:
-                        conj_x(inserto(l1without_to, toIndex, list1),
-                               inserto(l2without_to, toIndex, list2),
-                               inserto(both_without, fromIndex, l1without_to),
-                               inserto(both_without, fromIndex, l2without_to)))
+    return call_fresh_x(lambda eqVal, eqIndex:
+                        conj_x(neq(toIndex, eqIndex), neq(fromIndex, eqIndex),
+                               indexo(list1, eqVal, eqIndex),
+                               indexo(list2, eqVal, eqIndex)))
 
 def step_pair(stepBefore, stepAfter):
     return conj_x(is_step(stepBefore),
                   is_step(stepAfter),
-                  call_fresh_x(lambda actionBefore, actionFromIndex, actionToIndex, stateBefore, stateAfter, discs, towers:
-                               conj_x(eq(stepBefore, Link(actionBefore, stateBefore)),
-                                      eq(stepAfter, Link(Link(actionFromIndex, actionToIndex), stateAfter)),
+                  call_fresh_x(lambda actionBefore, actionFromIndex, actionToIndex, stateBefore, stateAfter:
+                               conj_x(conso(actionBefore, stateBefore, stepBefore),
+                                      conso(Link(actionFromIndex, actionToIndex), stateAfter, stepAfter),
                                       call_fresh_x(lambda beforeFromStack, beforeToStack, afterFromStack, afterToStack, movingDisc:
                                             conj_x(equal_except_from_to(stateBefore, stateAfter, actionToIndex, actionFromIndex),
+                                                   conso(movingDisc, afterFromStack, beforeFromStack),
+                                                   conso(movingDisc, beforeToStack, afterToStack),
                                                    indexo(stateBefore, beforeFromStack, actionFromIndex),
                                                    indexo(stateBefore, beforeToStack, actionToIndex),
                                                    indexo(stateAfter, afterFromStack, actionFromIndex),
-                                                   indexo(stateAfter, afterToStack, actionToIndex),
-                                                   conso(movingDisc, afterFromStack, beforeFromStack),
-                                                   conso(movingDisc, beforeToStack, afterToStack))),
+                                                   indexo(stateAfter, afterToStack, actionToIndex))),
                                       leno(stateBefore, 3),
                                       leno(stateAfter, 3),
                                       hanoi_size(stateAfter, 3),
@@ -421,9 +420,13 @@ def solve_hanoi(start_state, path, end_state):
     def walk_path(sub_path):
         return call_fresh_x(lambda last_action:
                             disj_x(eq(sub_path, Link(Link(last_action, end_state))),
-                                   call_fresh_x(lambda next_action_state, next_path:
+                                   call_fresh_x(lambda next_action_state, next_path, next_action, next_state:
                                                 conj_x(conso(next_action_state, next_path, sub_path),
-                                                       absento(next_action_state, next_path),
+                                                       conso(next_action, next_state, next_action_state),
+                                                       for_all(next_path, lambda step:
+                                                               call_fresh_x(lambda step_action, step_state:
+                                                                            neq(step_state, next_state))),
+#                                                       absento(next_action_state, next_path),
                                                        walk_path(next_path)))))
 
     return call_fresh_x(lambda rest_path, last_action:
