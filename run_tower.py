@@ -1,22 +1,8 @@
 import time
 import sys
 from towers_of_hanoi import *
-def proc(goal):
-    log, logFun = logger()
-    st = State(traceFun=logFun)
-    print(list(goal(st)))
-    print("+" * 20)
-    print(log_to_str(log))
 
-def proc_log(goal):
-    log, logFun = logger()
-    st = State(traceFun=logFun)
-    print(list(goal(st)))
-    print("+" * 20)
-    print(log_to_str(log))
-
-log, logFun = logger()
-st = State(traceFun=logFun)
+st = State()
 
 sys.setrecursionlimit(3700)
 
