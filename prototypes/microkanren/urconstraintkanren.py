@@ -1,3 +1,4 @@
+import itertools
 import types
 from inspect import signature
 
@@ -36,7 +37,7 @@ class Link(object):
     using Python lists, but in this style of linked list can be represented like
     this: `Link('cake', LogicVariable(0))`
     """
-    def __init__(self, head=None, tail=None):
+    def __init__(self, head=None, tail=()):
         """For practical purposes this is a traditional value and pointer style
         of linked list. The head is the value the tail is the pointer.  If the
         tail is set to None, then it's a single value list, if the head is set
@@ -50,11 +51,12 @@ class Link(object):
         @param head: The value for the link.
         @param tail: The rest of the list, if any, or another value.
         """
-        self.head = head
-        if isinstance(tail, Link) and tail.is_empty():
-            self.tail = None
+        if head is None:
+            self._link = ()
+        elif isinstance(tail, Link) and tail.is_empty():
+            self._link = (head, ())
         else:
-            self.tail = tail
+            self._link = (head, tail)
 
     def __eq__(self, other):
         """Equality here tests first for if both qualify as empty lists. As
@@ -68,12 +70,14 @@ class Link(object):
         @param other: The value being compared for equality.
         @return: True if both are equal, false otherwise.
         """
-        if other is None and self.is_empty():
+        if other == () and self.is_empty():
             return True
         if not isinstance(other, Link):
             return False
-        elif self.is_empty() and other.is_empty():
-            return True
+        elif self.is_empty():
+            return other.is_empty()
+        elif other.is_empty():
+            return False
         elif self.head == other.head:
             return self.tail == other.tail
         else:
@@ -95,7 +99,7 @@ class Link(object):
             point_to = point_to.tail
             str_repr += " "
             str_repr += "%s" % repr(point_to.head)
-        if point_to.tail is None:
+        if point_to.tail is ():
             str_repr += ")"
         else:
             str_repr += " . %s)" % repr(point_to.tail)
@@ -108,7 +112,7 @@ class Link(object):
 
         @return: A reasonably unique hash.
         """
-        return self.head.__hash__() + self.tail.__hash__()
+        return self._link.__hash__()
 
     def __contains__(self, elem):
         """Returns true if `elem` is part of the list that this link is the
@@ -134,13 +138,25 @@ class Link(object):
         else:
             return self.tail == elem
 
+    @property
+    def head(self):
+        assert self._link != (), "Empty Lists are headless."
+        return self._link[0]
+
+    @property
+    def tail(self):
+        if self._link == ():
+            return ()
+        else:
+            return self._link[1]
+
     def is_empty(self):
         """Check if the list is `empty` which means both the `head` and `tail`
         are `None`.
 
         @return: True if empty, False otherwise.
         """
-        return self.head is None and self.tail is None
+        return self._link == ()  # self.head is None and self.tail is ()
 
 def list_to_links(lst):
     """Linked Lists are a neat, elegant data structure...
@@ -234,7 +250,10 @@ class State(object):
     goals are processed.  I chose this because it makes it relatively easy to
     understand how new constraints are added.
     """
-    def __init__(self, constraints={}, constraintFunctions={}, count=0):
+
+    nextId = 0
+
+    def __init__(self, constraints={}, constraintFunctions={}, count=0, parentId=None):
         """In most of your usage, you'll instantiate State as empty, but will
         have to worry about adding new constraints and functions if you write
         a custom constraint. Fortunately we have functions further down to make
@@ -253,6 +272,9 @@ class State(object):
         in the State.
         """
         assert count >= 0
+        self.id = State.nextId
+        State.nextId += 1
+        self.parentId = parentId
         self.count = count
         self.constraints = {}
         self.constraintFunctions = constraintFunctions
@@ -267,7 +289,7 @@ class State(object):
         @param other: The state being compared to.
         @return: True if both the counts and constraints are the same.
         """
-        assert isinstance(other, State)
+        assert isinstance(other, State), "Other should be a State but is: %s" % str(type(other))
         if self.count == other.count and self.constraints == other.constraints:
             return True
         else:
@@ -290,6 +312,7 @@ class State(object):
             for constraint_arguments in self.constraints[constraint]:
                 constraint_str += "\t\t%s\n" % repr(constraint_arguments)
         return "\nCount: %i\nConstraints:\n%s" % (self.count, constraint_str)
+
 
 def var(identifier, name=None):
     """A wrapper that creates a LogicVariable. This is mostly to match other
@@ -350,6 +373,22 @@ def walk(term, substitution):
     else:
         return term
 
+def deep_walk(term, substitution):
+    value = walk(term, substitution)
+    if isinstance(value, Link):
+        tail = value
+        lst = []
+        while not (tail.is_empty() or varq(tail)):
+            head = deep_walk(tail.head, substitution)
+            lst.append(head)
+            tail = walk(tail.tail, substitution)
+        lst.reverse()
+        for val in lst:
+            tail = Link(val, tail)
+        return tail
+    else:
+        return value
+
 def ext_s(variable, value, substitution):
     """ext_s is a helper function for eq, without checking for duplicates or
     contradiction it adds a variable/value pair to the given substitution.
@@ -404,6 +443,10 @@ def unify(left, right, substitution):
     elif varq(rightValue):
         return ext_s(rightValue, left, substitution)
     elif isinstance(leftValue, Link) and isinstance(rightValue, Link):
+        if leftValue.is_empty():
+            return substitution if rightValue.is_empty() else False
+        elif rightValue.is_empty():
+            return False
         headSub = unify(leftValue.head, rightValue.head, substitution)
         if headSub is not False:
             return unify(leftValue.tail, rightValue.tail, headSub)
@@ -432,10 +475,17 @@ def generate(goal):
                 if isinstance(result, State):
                     yield result
                 else:
-                    yield from result
+                    for new_result in result:
+                        yield new_result
         else:
             result = goal(state)
-            yield from applyConstraints(result)
+            try:
+                for genState in result:
+                    yield genState
+            except TypeError as err: # This is a hack because iterators are a pain to check for.
+                yield result
+            except:
+                raise
     return generate_help
 
 def eq(left, right):
@@ -452,7 +502,7 @@ def eq(left, right):
         if isinstance(unified, frozenset):
             constraints = {**state.constraints, **{"eq":unified}}
             constraint_funcs = {**state.constraintFunctions, **{"eq":eq}}
-            return State(new_constraints, constraint_funcs, state.count)
+            return State(constraints, constraint_funcs, state.count, state.id)
         else:
             return mzero
     return generate(eqHelp)
@@ -476,7 +526,7 @@ def make_constraint(state, fails, function, *args):
         constraint = state.constraints.get(name, frozenset())
         constraints = {**state.constraints, **{name:constraint | {args}}}
         constraint_funcs = {**state.constraintFunctions, name:function}
-        return unit(State(constraints, constraint_funcs, state.count))
+        return unit(State(constraints, constraint_funcs, state.count, state.id))
 
 def neq(left, right):
     """Asserts that the `left` value is not equal to the `right` value.
@@ -501,14 +551,8 @@ def absento(elem, lst):
     @param lst: A value that could either be a list or individual element.
     @return: A function that takes a state and returns a stream of states.
     """
-    def absentoHelp(state):
-        substitution = state.constraints.get("eq", frozenset())
-        elemValue = walk(elem, substitution)
-        lstValue = walk(lst, substitution)
-        fails = any([elemValue == lstValue,
-                     not varq(lstValue) and elemValue in lstValue])
-        return make_constraint(state, fails, absento, elem, lst)
-    return generate(absentoHelp)
+    return conj(neq(elem, lst),
+                for_all(lst, lambda lstElem: neq(lstElem, elem)))
 
 def call_fresh(function):
     """call_fresh is used to instantiate new variables in the logic system.
@@ -523,9 +567,51 @@ def call_fresh(function):
         name = list(signature(function).parameters)[0]
         new_var = var(count, name)
         goal = function(new_var)
-        newState = State(state.constraints, state.constraintFunctions, count+1)
-        yield from goal(newState)
+        newState = State(state.constraints, state.constraintFunctions, count+1, state.id)
+        succeeds = False
+        for state_ in goal(newState):
+            succeeds = True
+            yield state_
     return generate(call_fresh_help)
+
+def call(f):
+    def deep_get(val, state):
+        constraints = state.constraints
+        eq = constraints.get('eq', frozenset())
+        return deep_walk(var, eq)
+
+    def call_help(state):
+        c = state.count
+        params = signature(f).parameters
+        arg_count = len(params)
+        new_c = c + arg_count
+        ids_and_params = zip(range(c, new_c), params)
+        new_vars = [var(number, name) for (number, name) in ids_and_params]
+        fun = f(*new_vars)
+        newState = State(state.constraints, state.constraintFunctions, new_c, state.id)
+        state_generator = fun(newState)
+        stateStreams = [state_generator]
+        newStreams = []
+        while stateStreams:
+            for stateStream in stateStreams:
+                try:
+                    resultBase = stateStream.__next__()
+                    baseArgResults = [deep_get(var, resultBase) for var in new_vars]
+                    resultStream = applyConstraints(resultBase)
+                    for result in resultStream:
+                        argResults = [deep_get(var, result) for var in new_vars]
+                        if baseArgResults == argResults:
+                            yield result
+                        else:
+                            newStreams.append(unit(result))
+                    newStreams.append(stateStream)
+                except StopIteration:
+                        pass
+            stateStreams = newStreams
+            newStreams = []
+
+    return call_help
+
 
 def disj(g1, g2):
     """Take two relations, pass the state to each of them separately, yield a
@@ -539,7 +625,9 @@ def disj(g1, g2):
     """
 
     def disj_help(state):
-        yield from mplus(g1(state), g2(state))
+        state_1 = State(state.constraints, state.constraintFunctions, state.count, state.id)
+        state_2 = State(state.constraints, state.constraintFunctions, state.count, state.id)
+        yield from mplus(g1(state_1), g2(state_2))
     return generate(disj_help)
 
 def conj(g1, g2):
@@ -552,8 +640,108 @@ def conj(g1, g2):
     @return: A function that streams a state through both g1 and g2.
     """
     def conj_help(state):
-        yield from bind(g1, g2)(state)
+        state_ = State(state.constraints, state.constraintFunctions, state.count, state.id)
+        yield from bind(g1, g2)(state_)
     return generate(conj_help)
+
+def for_all(value, goal):
+    """Given a `value` that may be a Logic Varible or Link and an Arity-1 `goal` that has not had
+    a value applied to it, `for_all` will do the following depending on what kind of `value` it is given:
+
+    Empty Link: Always succeeds. If there are no values to test then there are no failed values.
+    Link: Apply the `goal` to the head then apply for_all to the tail.
+    Logic Variable: Add a constraint under for_all with the given goal to the variable.
+
+    This will permit us to make assertions about lists of values without having to actually know what
+    the values are, or if they exist at all.
+
+    @param value: Either a Logic Variable or an Link
+    @param goal: A single arity goal that has not had a value applied to it.
+    @return: A function that will stream a state passing value through goal.
+    """
+    def for_all_help(state):
+        substitution = state.constraints.get("eq", frozenset())
+        value_ = walk(value, substitution)
+        if(varq(value_)):
+            for_all_constraints = state.constraints.get("for_all", frozenset())
+            if not([c for c in for_all_constraints if c[0] == value_]):
+                return make_constraint(state, False, for_all, value_, goal)
+            else:
+                return unit(state)
+        elif(isinstance(value_, Link) or value_ == ()):
+            if value_ == () or value_.is_empty():
+                return unit(state)
+            else:
+                return conj(goal(value_.head), for_all(value_.tail, goal))(state)
+        else:
+            return mzero
+    return generate(for_all_help)
+
+def for_any(value, goal):
+    """Given a `value` that may be a Logic Varible or Link and an Arity-1 `goal` that has not had
+    a value applied to it, `for_any` will do the following depending on what kind of `value` it is given:
+
+    Empty Link: Always fails. The goal must be true for at least one item, if there are no item
+    then it must fail.
+    Link: Apply the `goal` to the head, if it's true then succeeds, but still perfoms a disjunction
+    on the remainder of the list.
+    Logic Variable: Add a constraint under for_any with the given goal to the variable.
+
+    This will permit us to make assertions about lists of values without having to actually know what
+    the values are, or if they exist at all.
+
+    @param value: Either a Logic Variable or an Link
+    @param goal: A single arity goal that has not had a value applied to it.
+    @return: A function that will stream a state passing value through goal.
+    """
+    def for_all_help(state):
+        substitution = state.constraints.get("eq", frozenset())
+        value_ = walk(value, substitution)
+        if(varq(value_)):
+            return make_constraint(state, False, for_any, value_, goal)
+        elif(isinstance(value_, Link) or value_ == ()):
+            if value_ == () or value_.is_empty():
+                return mzero
+            else:
+                return disj(goal(value_.head), for_any(value_.tail, goal))(state)
+        else:
+            return mzero
+    return generate(for_all_help)
+
+def between_all(value, goal):
+    """Given a 'value' that may be a Logic Variable or a Link and an Arity-2 'goal' that has not had
+    values applied to it, `between_all` verifies that the `goal` applies between each of the heads
+    of the Link in succession.
+
+    This allows us to make constraints about a list, for example that it is sorted, without knowing
+    all of its values.
+
+    @param value: Either a Logic Variable or an Link
+    @param goal: An arity-2 goal that has not had a value applied to it.
+    @return: A function that will stream a state passing value through goal.
+    """
+    def between_all_help(state):
+        substitution = state.constraints.get("eq", frozenset())
+        value_ = walk(value, substitution)
+        if(varq(value_)):
+            return make_constraint(state, False, between_all, value_, goal)
+        elif(isinstance(value_, Link) or value_ == ()):
+            if value_ == () or value_.is_empty():
+                return unit(state)
+            else:
+                tail = walk(value_.tail, substitution)
+                if(varq(tail)):
+                    return make_constraint(state, False, between_all, value_, goal)
+                elif(isinstance(tail, Link) or tail == ()):
+                    if tail == () or tail.is_empty():
+                        return unit(state)
+                    else:
+                        return conj(goal(value_.head, tail.head), between_all(tail, goal))(state)
+                else:
+                    return mzero
+        else:
+            return mzero
+    return generate(between_all_help)
 
 def applyConstraints(state):
     """For the given state, consecutively applies all of it's exiting
